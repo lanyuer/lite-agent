@@ -3,6 +3,7 @@ import { Send, StopCircle, Paperclip, Mic, ArrowUp, Plus } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { EventMessage } from './components/EventMessage';
 import { useAgentEvents } from './hooks/useAgentEvents';
+import type { MessageState, ThinkingState, ToolCallState } from './lib/EventProcessor';
 import './App.css';
 
 function AppWithEvents() {
@@ -50,7 +51,8 @@ function AppWithEvents() {
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
+        // Send on Ctrl+Enter or Cmd+Enter
+        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
             e.preventDefault();
             handleSendMessage();
         }
@@ -122,60 +124,143 @@ function AppWithEvents() {
                             <div className="header-title">Lite Agent 1.0</div>
                         </header>
                         <div className="chat-messages">
-                            {/* Create unified timeline of all events */}
+                            {/* Create unified timeline with thinking and messages merged */}
                             {(() => {
-                                // Combine all events with their types and sequence
-                                const timeline: Array<{
-                                    id: string;
+                                // Collect all events and sort by sequence
+                                const allEvents: Array<{
                                     type: 'message' | 'thinking' | 'toolCall';
-                                    data: any;
+                                    data: MessageState | ThinkingState | ToolCallState;
                                     sequence: number;
                                 }> = [];
 
-                                // Add messages
                                 state.messages.forEach(msg => {
-                                    timeline.push({
-                                        id: msg.id,
-                                        type: 'message',
-                                        data: msg,
-                                        sequence: msg.sequence
-                                    });
+                                    allEvents.push({ type: 'message', data: msg, sequence: msg.sequence });
                                 });
-
-                                // Add thinking
                                 state.thinking.forEach(think => {
-                                    timeline.push({
-                                        id: think.id,
-                                        type: 'thinking',
-                                        data: think,
-                                        sequence: think.sequence
-                                    });
+                                    allEvents.push({ type: 'thinking', data: think, sequence: think.sequence });
                                 });
-
-                                // Add tool calls
                                 state.toolCalls.forEach(tool => {
-                                    timeline.push({
-                                        id: tool.id,
-                                        type: 'toolCall',
-                                        data: tool,
-                                        sequence: tool.sequence
-                                    });
+                                    allEvents.push({ type: 'toolCall', data: tool, sequence: tool.sequence });
                                 });
 
-                                // Sort by sequence number to maintain chronological order
-                                timeline.sort((a, b) => a.sequence - b.sequence);
+                                // Sort by sequence
+                                allEvents.sort((a, b) => a.sequence - b.sequence);
 
-                                return timeline.map(item => {
-                                    switch (item.type) {
-                                        case 'message':
-                                            return <EventMessage key={item.id} message={item.data} />;
-                                        case 'thinking':
-                                            return <EventMessage key={item.id} thinking={item.data} />;
-                                        case 'toolCall':
-                                            return <EventMessage key={item.id} toolCall={item.data} />;
-                                        default:
-                                            return null;
+                                // Group thinking with the next assistant message
+                                const grouped: Array<{
+                                    id: string;
+                                    message?: MessageState;
+                                    thinking?: ThinkingState;
+                                    toolCall?: ToolCallState;
+                                }> = [];
+
+                                for (let i = 0; i < allEvents.length; i++) {
+                                    const event = allEvents[i];
+
+                                    if (event.type === 'message') {
+                                        const msg = event.data as MessageState;
+                                        
+                                        if (msg.role === 'user') {
+                                            grouped.push({ id: msg.id, message: msg });
+                                        } else if (msg.role === 'assistant') {
+                                            // Find the most recent thinking before this message
+                                            let associatedThinking: ThinkingState | undefined;
+                                            
+                                            // Look back for thinking
+                                            for (let j = i - 1; j >= 0; j--) {
+                                                const prevEvent = allEvents[j];
+                                                // Stop if we hit another assistant message or user message
+                                                if (prevEvent.type === 'message') break;
+                                                
+                                                if (prevEvent.type === 'thinking') {
+                                                    associatedThinking = prevEvent.data as ThinkingState;
+                                                    break; // Found it
+                                                }
+                                            }
+                                            
+                                            grouped.push({
+                                                id: msg.id,
+                                                message: msg,
+                                                thinking: associatedThinking
+                                            });
+                                        }
+                                    } else if (event.type === 'toolCall') {
+                                        grouped.push({ id: event.data.id, toolCall: event.data as ToolCallState });
+                                    } else if (event.type === 'thinking') {
+                                        // Check if this thinking is consumed by a future message
+                                        let isConsumed = false;
+                                        for (let j = i + 1; j < allEvents.length; j++) {
+                                            const nextEvent = allEvents[j];
+                                            // If we hit an assistant message, this thinking belongs to it
+                                            if (nextEvent.type === 'message' && (nextEvent.data as MessageState).role === 'assistant') {
+                                                isConsumed = true;
+                                                break;
+                                            }
+                                            // If we hit another thinking or user message, this thinking is standalone
+                                            if (nextEvent.type === 'thinking' || (nextEvent.type === 'message' && (nextEvent.data as MessageState).role === 'user')) {
+                                                break;
+                                            }
+                                        }
+                                        
+                                        if (!isConsumed) {
+                                            grouped.push({ id: event.data.id, thinking: event.data as ThinkingState });
+                                        }
                                     }
+                                }
+
+                                // Optimistic UI: Show loading thinking process immediately after user message
+                                if (state.isRunning) {
+                                    const hasAssistantActivity = grouped.some(item => 
+                                        (item.message && item.message.role === 'assistant') || 
+                                        item.thinking || 
+                                        (item.toolCall)
+                                    );
+
+                                    if (!hasAssistantActivity) {
+                                        grouped.push({
+                                            id: 'optimistic-thinking',
+                                            thinking: {
+                                                id: 'optimistic-thinking',
+                                                content: '',
+                                                isComplete: false,
+                                                sequence: Infinity
+                                            }
+                                        });
+                                    }
+                                }
+
+                                return grouped.map((item, index) => {
+                                    // Determine if header should be hidden
+                                    // Hide if previous item was also an assistant event (thinking, tool, or assistant message)
+                                    // and this item is also an assistant event
+                                    let hideHeader = false;
+                                    
+                                    if (index > 0) {
+                                        const prevItem = grouped[index - 1];
+                                        const isPrevAssistant = 
+                                            (prevItem.message?.role === 'assistant') || 
+                                            (!!prevItem.thinking && !prevItem.message) || 
+                                            (!!prevItem.toolCall);
+                                            
+                                        const isCurrentAssistant = 
+                                            (item.message?.role === 'assistant') || 
+                                            (!!item.thinking && !item.message);
+                                            
+                                        // Don't hide header for tool calls to keep them distinct
+                                        if (isPrevAssistant && isCurrentAssistant && !item.toolCall) {
+                                            hideHeader = true;
+                                        }
+                                    }
+
+                                    return (
+                                        <EventMessage
+                                            key={item.id}
+                                            message={item.message}
+                                            thinking={item.thinking}
+                                            toolCall={item.toolCall}
+                                            hideHeader={hideHeader}
+                                        />
+                                    );
                                 });
                             })()}
                             <div ref={messagesEndRef} />

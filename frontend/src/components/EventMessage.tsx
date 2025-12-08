@@ -1,5 +1,5 @@
-import React from 'react';
-import { User, Bot, Terminal, Cpu, CheckCircle, XCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Terminal, CheckCircle, XCircle, ChevronDown, ChevronRight, Lightbulb, Loader2 } from 'lucide-react';
 import type { MessageState, ThinkingState, ToolCallState } from '../lib/EventProcessor';
 import { StreamingMarkdown } from './StreamingMarkdown';
 import { StreamingText } from './StreamingText';
@@ -9,95 +9,190 @@ interface EventMessageProps {
     message?: MessageState;
     thinking?: ThinkingState;
     toolCall?: ToolCallState;
+    hideHeader?: boolean;
 }
 
 export const EventMessage: React.FC<EventMessageProps> = ({
     message,
     thinking,
-    toolCall
+    toolCall,
+    hideHeader = false
 }) => {
-    // Render thinking block
-    if (thinking) {
-        return (
-            <div className="event-message thinking">
-                <div className="event-avatar thinking-avatar">
-                    <Cpu size={20} />
-                </div>
-                <div className="event-body">
-                    <div className="thinking-label">Thinking...</div>
-                    <div className="thinking-content">
-                        {thinking.isComplete ? (
-                            <pre>{thinking.content}</pre>
-                        ) : (
-                            <pre><StreamingText text={thinking.content} speed={10} interval={10} /></pre>
-                        )}
-                    </div>
-                </div>
-            </div>
-        );
-    }
+    const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
+    const [isToolExpanded, setIsToolExpanded] = useState(false);
 
-    // Render tool call
-    if (toolCall) {
+    // Render tool call (standalone) - Minimalist style
+    if (toolCall && !message && !thinking) {
         return (
-            <div className="event-message tool-call">
-                <div className="event-avatar tool-avatar">
-                    <Terminal size={20} />
-                </div>
-                <div className="event-body">
-                    <div className="tool-header">
-                        <span className="tool-name">{toolCall.name}</span>
-                        {toolCall.isComplete && (
-                            <span className="tool-status">
-                                {toolCall.isError ? (
-                                    <XCircle size={14} className="text-red-500" />
+            <div className={`event-message assistant-message ${hideHeader ? 'no-header' : ''}`}>
+                {!hideHeader && (
+                    <div className="message-header">
+                        <span className="sender-name">Lite Agent</span>
+                    </div>
+                )}
+                <div className="message-body">
+                    <div className="tool-call-section-minimal">
+                        <button
+                            className="tool-call-toggle-minimal"
+                            onClick={() => setIsToolExpanded(!isToolExpanded)}
+                        >
+                            <Terminal size={14} className="icon-tool" />
+                            <span className="tool-label-text">{toolCall.name}</span>
+                            {toolCall.isComplete && (
+                                toolCall.isError ? (
+                                    <XCircle size={14} className="icon-error" />
                                 ) : (
-                                    <CheckCircle size={14} className="text-green-500" />
+                                    <CheckCircle size={14} className="icon-success" />
+                                )
+                            )}
+                            {isToolExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        </button>
+                        
+                        {isToolExpanded && (
+                            <div className="tool-call-content-minimal">
+                                {toolCall.args && (
+                                    <div className="tool-section">
+                                        <div className="tool-section-title">Arguments</div>
+                                        <pre className="tool-section-content">{toolCall.args}</pre>
+                                    </div>
                                 )}
-                            </span>
+                                {toolCall.result && (
+                                    <div className="tool-section">
+                                        <div className="tool-section-title">Result</div>
+                                        <pre className="tool-section-content">
+                                            {typeof toolCall.result === 'string'
+                                                ? toolCall.result
+                                                : JSON.stringify(toolCall.result, null, 2)}
+                                        </pre>
+                                    </div>
+                                )}
+                            </div>
                         )}
                     </div>
-                    {toolCall.args && (
-                        <details className="tool-details">
-                            <summary>Arguments</summary>
-                            <pre className="tool-args">{toolCall.args}</pre>
-                        </details>
-                    )}
-                    {toolCall.result && (
-                        <details className="tool-details">
-                            <summary>Result</summary>
-                            <pre className="tool-result">
-                                {typeof toolCall.result === 'string'
-                                    ? toolCall.result
-                                    : JSON.stringify(toolCall.result, null, 2)}
-                            </pre>
-                        </details>
-                    )}
                 </div>
             </div>
         );
     }
 
-    // Render message
-    if (message) {
-        const isUser = message.role === 'user';
+    // Render user message (standalone)
+    if (message && message.role === 'user') {
+        return (
+            <div className="event-message user-message">
+                {!hideHeader && (
+                    <div className="message-header">
+                        <span className="sender-name">User</span>
+                    </div>
+                )}
+                <div className="message-body">
+                    <div className="message-content">
+                        {/* Render user message as plain text to avoid markdown formatting issues */}
+                        {message.content}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // Render assistant message with optional thinking (merged)
+    if (message && message.role === 'assistant') {
+        const hasThinking = thinking && thinking.content.trim().length > 0;
+        const isThinkingRunning = thinking && !thinking.isComplete;
 
         return (
-            <div className={`event-message ${isUser ? 'user' : 'assistant'}`}>
-                <div className={`event-avatar ${isUser ? 'user-avatar' : 'assistant-avatar'}`}>
-                    {isUser ? <User size={20} /> : <Bot size={20} />}
-                </div>
-                <div className="event-body">
-                    {message.isComplete ? (
-                        <div className="message-content">
-                            <StreamingMarkdown text={message.content} speed={5} interval={20} />
-                        </div>
-                    ) : (
-                        <div className="message-content streaming">
-                            <StreamingMarkdown text={message.content} speed={5} interval={20} />
-                            <span className="cursor">▊</span>
+            <div className={`event-message assistant-message ${hideHeader ? 'no-header' : ''}`}>
+                {!hideHeader && (
+                    <div className="message-header">
+                        <span className="sender-name">Lite Agent</span>
+                    </div>
+                )}
+                
+                <div className="message-body">
+                    {/* Thinking section - Minimalist style */}
+                    {hasThinking && (
+                        <div className="thinking-section-minimal">
+                            <button
+                                className="thinking-toggle-minimal"
+                                onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
+                            >
+                                {isThinkingRunning ? (
+                                    <Loader2 size={14} className="icon-thinking spin-animation" />
+                                ) : (
+                                    <Lightbulb size={14} className="icon-complete" />
+                                )}
+                                <span className="thinking-label-text">
+                                    Thinking Process
+                                </span>
+                                {isThinkingExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                            </button>
+                            
+                            {isThinkingExpanded && (
+                                <div className="thinking-content-minimal">
+                                    {thinking.isComplete ? (
+                                        <div className="thinking-text">{thinking.content}</div>
+                                    ) : (
+                                        <div className="thinking-text">
+                                            <StreamingText text={thinking.content} speed={10} interval={10} />
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
+
+                    {/* Main message content */}
+                    <div className="message-content-wrapper">
+                        {message.isComplete ? (
+                            <div className="message-content">
+                                <StreamingMarkdown text={message.content} speed={5} interval={20} />
+                            </div>
+                        ) : (
+                            <div className="message-content streaming">
+                                <StreamingMarkdown text={message.content} speed={5} interval={20} />
+                                <span className="cursor">▊</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // Render standalone thinking (fallback)
+    if (thinking && !message) {
+        const isThinkingRunning = !thinking.isComplete;
+        
+        return (
+            <div className={`event-message assistant-message ${hideHeader ? 'no-header' : ''}`}>
+                {!hideHeader && (
+                    <div className="message-header">
+                        <span className="sender-name">Lite Agent</span>
+                    </div>
+                )}
+                <div className="message-body">
+                    <div className="thinking-section-minimal">
+                        <button
+                            className="thinking-toggle-minimal"
+                            onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
+                        >
+                            {isThinkingRunning ? (
+                                <Loader2 size={14} className="icon-thinking spin-animation" />
+                            ) : (
+                                <Lightbulb size={14} className="icon-complete" />
+                            )}
+                            <span className="thinking-label-text">
+                                Thinking Process
+                            </span>
+                            {isThinkingExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        </button>
+                        
+                        {(isThinkingExpanded || isThinkingRunning) && (
+                            <div className="thinking-content-minimal">
+                                <div className="thinking-text">
+                                    <StreamingText text={thinking.content} speed={10} interval={10} />
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         );

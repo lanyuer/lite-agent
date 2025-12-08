@@ -113,13 +113,20 @@ export function useAgentEvents(options: UseAgentEventsOptions = {}) {
             timestamp: new Date().toISOString(),
         });
 
+        // Manually trigger RunStarted to set isRunning = true immediately
+        processorRef.current.processEvent({
+            type: 'RunStarted',
+            runId: `run-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+        } as any);
+
         updateState();
 
         // Create abort controller
         abortControllerRef.current = new AbortController();
 
         try {
-            const response = await fetch('http://localhost:8000/chat', {
+            const response = await fetch('http://localhost:8000/api/chat', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -179,6 +186,19 @@ export function useAgentEvents(options: UseAgentEventsOptions = {}) {
         } catch (error: any) {
             if (error.name !== 'AbortError') {
                 console.error('Error sending message:', error);
+                
+                // Ensure we reset the running state on error
+                if (processorRef.current) {
+                    processorRef.current.processEvent({
+                        type: 'RunError',
+                        runId: processorRef.current.getState().runId || 'error',
+                        error: error.message,
+                        timestamp: new Date().toISOString(),
+                    } as any);
+                    // Force update
+                    updateState();
+                }
+                
                 options.onError?.(error.message);
             }
         } finally {
