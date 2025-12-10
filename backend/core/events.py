@@ -14,11 +14,11 @@ from datetime import datetime
 
 class BaseEvent(BaseModel):
     """Base class for all events."""
-    model_config = ConfigDict(populate_by_name=True, alias_generator=lambda x: ''.join(word.capitalize() if i > 0 else word for i, word in enumerate(x.split('_'))))
+    model_config = ConfigDict(populate_by_name=True)  # Use snake_case for all fields
     
     type: str
     timestamp: datetime = Field(default_factory=datetime.now)
-    raw_event: Optional[Dict[str, Any]] = Field(default=None, alias='rawEvent')
+    raw_event: Optional[Dict[str, Any]] = None
 
 
 # ============================================================================
@@ -38,6 +38,7 @@ class RunFinished(BaseEvent):
     run_id: str
     duration_ms: Optional[int] = None
     total_cost_usd: Optional[float] = None
+    usage: Optional[Dict[str, Any]] = None  # Token usage details
 
 
 class RunError(BaseEvent):

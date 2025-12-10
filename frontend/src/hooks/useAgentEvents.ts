@@ -4,7 +4,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { EventProcessor } from '../lib/EventProcessor';
-import type { MessageState, ThinkingState, ToolCallState } from '../lib/EventProcessor';
+import type { MessageState, ThinkingState, ToolCallState, UsageInfo } from '../lib/EventProcessor';
 import type { AgentEvent } from '../types';
 
 export interface UseAgentEventsOptions {
@@ -18,6 +18,7 @@ export interface AgentState {
     toolCalls: ToolCallState[];
     isRunning: boolean;
     error?: string;
+    usage?: UsageInfo; // Token usage and cost information
 }
 
 export function useAgentEvents(options: UseAgentEventsOptions = {}) {
@@ -30,6 +31,7 @@ export function useAgentEvents(options: UseAgentEventsOptions = {}) {
 
     const processorRef = useRef<EventProcessor | null>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
+    const sessionIdRef = useRef<string | null>(null);
 
     const updateState = useCallback(() => {
         if (!processorRef.current) return;
@@ -46,6 +48,7 @@ export function useAgentEvents(options: UseAgentEventsOptions = {}) {
                 toolCalls: Array.from(runState.toolCalls.values()),
                 isRunning: runState.isRunning,
                 error: runState.error,
+                usage: runState.usage, // Include usage information
             });
         });
     }, []);
@@ -90,33 +93,33 @@ export function useAgentEvents(options: UseAgentEventsOptions = {}) {
     const sendMessage = useCallback(async (message: string) => {
         if (!processorRef.current) return;
 
-        // Reset processor for new run
-        processorRef.current.reset();
+        // Don't reset processor - keep conversation history
+        // processorRef.current.reset();
 
         // Add user message to state
         const userMessageId = `user-${Date.now()}`;
         processorRef.current.processEvent({
             type: 'TextMessageStart',
-            messageId: userMessageId,
+            message_id: userMessageId,
             role: 'user',
             timestamp: new Date().toISOString(),
         });
         processorRef.current.processEvent({
             type: 'TextMessageContent',
-            messageId: userMessageId,
+            message_id: userMessageId,
             delta: message,
             timestamp: new Date().toISOString(),
         });
         processorRef.current.processEvent({
             type: 'TextMessageEnd',
-            messageId: userMessageId,
+            message_id: userMessageId,
             timestamp: new Date().toISOString(),
         });
 
         // Manually trigger RunStarted to set isRunning = true immediately
         processorRef.current.processEvent({
             type: 'RunStarted',
-            runId: `run-${Date.now()}`,
+            run_id: `run-${Date.now()}`,
             timestamp: new Date().toISOString(),
         } as any);
 
@@ -126,12 +129,18 @@ export function useAgentEvents(options: UseAgentEventsOptions = {}) {
         abortControllerRef.current = new AbortController();
 
         try {
-            const response = await fetch('http://localhost:8000/api/chat', {
+            // Include session_id in request body to maintain conversation context
+            const requestBody: { message: string; session_id?: string } = { message };
+            if (sessionIdRef.current) {
+                requestBody.session_id = sessionIdRef.current;
+            }
+
+            const response = await fetch('http://localhost:8000/api/response', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ message }),
+                body: JSON.stringify(requestBody),
                 signal: abortControllerRef.current.signal,
             });
 
@@ -161,6 +170,17 @@ export function useAgentEvents(options: UseAgentEventsOptions = {}) {
 
                         try {
                             const event = JSON.parse(dataStr) as AgentEvent;
+                            
+                            // Handle SessionInfo event to capture session_id
+                            // CustomEvent sets its own 'type' field, so check event.type directly
+                            if (event.type === 'SessionInfo') {
+                                const sessionId = (event as any).data?.session_id;
+                                if (sessionId) {
+                                    sessionIdRef.current = sessionId;
+                                    console.log('[useAgentEvents] Session ID captured:', sessionId);
+                                }
+                            }
+                            
                             processEvent(event);
                         } catch (e) {
                             console.error('Error parsing event:', e);
@@ -176,7 +196,7 @@ export function useAgentEvents(options: UseAgentEventsOptions = {}) {
                     console.log('[useAgentEvents] Stream ended but isRunning still true, forcing to false');
                     processorRef.current.processEvent({
                         type: 'RunFinished',
-                        runId: state.runId,
+                        run_id: state.run_id,
                         timestamp: new Date().toISOString(),
                     } as any);
                     // Force state update
@@ -191,7 +211,7 @@ export function useAgentEvents(options: UseAgentEventsOptions = {}) {
                 if (processorRef.current) {
                     processorRef.current.processEvent({
                         type: 'RunError',
-                        runId: processorRef.current.getState().runId || 'error',
+                        run_id: processorRef.current.getState().run_id || 'error',
                         error: error.message,
                         timestamp: new Date().toISOString(),
                     } as any);
@@ -212,10 +232,23 @@ export function useAgentEvents(options: UseAgentEventsOptions = {}) {
         }
     }, []);
 
+    const resetSession = useCallback(() => {
+        // Clear session ID to start a new conversation
+        sessionIdRef.current = null;
+        // Reset processor to clear message history
+        if (processorRef.current) {
+            processorRef.current.reset();
+            updateState();
+        }
+        console.log('[useAgentEvents] Session reset');
+    }, [updateState]);
+
     return {
         state,
         sendMessage,
         stopGeneration,
         processEvent,
+        resetSession,
+        sessionId: sessionIdRef.current,
     };
 }

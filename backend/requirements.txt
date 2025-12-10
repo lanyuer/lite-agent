@@ -2,3 +2,6 @@ fastapi
 uvicorn
 claude-agent-sdk
 python-dotenv
+sqlalchemy
+pydantic-settings
+loguru

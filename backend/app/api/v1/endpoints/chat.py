@@ -1,5 +1,5 @@
 """
-Chat API routes.
+Chat API endpoints (legacy).
 """
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
@@ -8,7 +8,7 @@ from claude_agent_sdk import ClaudeAgentOptions, query
 from core.adapters import EventAdapter
 
 
-router = APIRouter(prefix="/api", tags=["chat"])
+router = APIRouter()
 
 
 class ChatRequest(BaseModel):
@@ -16,7 +16,7 @@ class ChatRequest(BaseModel):
     message: str
 
 
-@router.post("/chat")
+@router.post("")
 async def chat(request: ChatRequest):
     """
     Stream chat responses as AG-UI events.
@@ -38,15 +38,14 @@ async def chat(request: ChatRequest):
             
             # Get message stream from SDK
             message_stream = query(prompt=request.message, options=options)
-            #message_stream = query(request.message)
             
             # Create event adapter
             adapter = EventAdapter()
             
             # Convert to events and stream
             async for event in adapter.adapt_message_stream(message_stream):
-                # Serialize event to JSON with camelCase field names
-                event_json = event.model_dump_json(by_alias=True)
+                # Serialize event to JSON with snake_case field names
+                event_json = event.model_dump_json()
                 yield f"data: {event_json}\n\n"
                 
         except Exception as e:
@@ -57,7 +56,7 @@ async def chat(request: ChatRequest):
                 run_id=str(uuid.uuid4()),
                 error=str(e)
             )
-            yield f"data: {error_event.model_dump_json(by_alias=True)}\n\n"
+            yield f"data: {error_event.model_dump_json()}\n\n"
     
     return StreamingResponse(
         event_generator(),

@@ -5,3 +5,4 @@ backend/uv.lock
 .env.local
 minimax.env
 backend/.python-version
+.DS_Store

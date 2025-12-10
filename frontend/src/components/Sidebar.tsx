@@ -3,7 +3,6 @@ import {
     Plus,
     Search,
     Library,
-    FolderPlus,
     Settings,
     PanelLeftClose,
     PanelLeft,
@@ -11,12 +10,34 @@ import {
 } from 'lucide-react';
 import './Sidebar.css';
 
+export interface Task {
+    id: number;
+    title: string;
+    session_id: string | null;
+    created_at: string;
+    updated_at: string;
+    total_cost_usd?: number;
+    total_input_tokens?: number;
+    total_output_tokens?: number;
+}
+
 interface SidebarProps {
     isOpen: boolean;
     toggleSidebar: () => void;
+    tasks: Task[];
+    currentTaskId: number | null;
+    onNewTask: () => void;
+    onTaskSelect: (taskId: number) => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ 
+    isOpen, 
+    toggleSidebar, 
+    tasks, 
+    currentTaskId,
+    onNewTask,
+    onTaskSelect 
+}) => {
     return (
         <div className={`sidebar ${isOpen ? 'open' : 'closed'}`}>
             <div className="sidebar-header">
@@ -30,7 +51,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar }) => {
             </div>
 
             <div className="sidebar-content">
-                <button className="new-task-btn">
+                <button className="new-task-btn" onClick={onNewTask}>
                     <Plus size={18} />
                     <span>New Task</span>
                 </button>
@@ -46,32 +67,31 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar }) => {
                     </div>
                 </div>
 
-                <div className="section-header">
-                    <span>Projects</span>
-                    <Plus size={14} className="section-add-btn" />
-                </div>
-
-                <div className="nav-group">
-                    <div className="nav-item active">
-                        <FolderPlus size={18} />
-                        <span>New Project</span>
-                    </div>
-                </div>
-
                 <div className="spacer" />
 
                 <div className="history-section">
                     <div className="section-header">
                         <span>Recent Tasks</span>
                     </div>
-                    <div className="nav-item">
-                        <MessageSquare size={18} />
-                        <span className="text-truncate">Refactoring Codebase...</span>
-                    </div>
-                    <div className="nav-item">
-                        <MessageSquare size={18} />
-                        <span className="text-truncate">Implementing Context...</span>
-                    </div>
+                    {tasks.length === 0 ? (
+                        <div className="nav-item" style={{ color: '#999', fontStyle: 'italic' }}>
+                            <MessageSquare size={18} />
+                            <span className="text-truncate">No tasks yet</span>
+                        </div>
+                    ) : (
+                        tasks.map((task) => (
+                            <div
+                                key={task.id}
+                                className={`nav-item ${currentTaskId === task.id ? 'active' : ''}`}
+                                onClick={() => onTaskSelect(task.id)}
+                            >
+                                <MessageSquare size={18} />
+                                <span className="text-truncate" title={task.title}>
+                                    {task.title}
+                                </span>
+                            </div>
+                        ))
+                    )}
                 </div>
             </div>
 

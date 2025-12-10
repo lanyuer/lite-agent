@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, StopCircle, Paperclip, Mic, ArrowUp, Plus } from 'lucide-react';
-import { Sidebar } from './components/Sidebar';
+import { Sidebar, type Task } from './components/Sidebar';
 import { EventMessage } from './components/EventMessage';
 import { useAgentEvents } from './hooks/useAgentEvents';
 import type { MessageState, ThinkingState, ToolCallState } from './lib/EventProcessor';
@@ -9,18 +9,91 @@ import './App.css';
 function AppWithEvents() {
     const [input, setInput] = useState('');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [tasks, setTasks] = useState<Task[]>([]);
+    const [currentTaskId, setCurrentTaskId] = useState<number | null>(null);
+    const [isLoadingTasks, setIsLoadingTasks] = useState(true);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-    const { state, sendMessage, stopGeneration } = useAgentEvents({
+    const { state, sendMessage, stopGeneration, loadTask, taskId } = useAgentEvents({
+        taskId: currentTaskId,
         onError: (error) => {
             console.error('Agent error:', error);
             alert(`Error: ${error}`);
         },
-        onComplete: () => {
+        onComplete: async () => {
             console.log('Agent completed');
+            // Refresh tasks list after completion
+            await fetchTasks();
         },
     });
+
+    // Fetch tasks from API
+    const fetchTasks = async () => {
+        try {
+            const response = await fetch('http://localhost:8000/api/tasks');
+            if (response.ok) {
+                const data = await response.json();
+                setTasks(data);
+            }
+        } catch (error) {
+            console.error('Error fetching tasks:', error);
+        } finally {
+            setIsLoadingTasks(false);
+        }
+    };
+
+    // Load tasks on mount
+    useEffect(() => {
+        fetchTasks();
+    }, []);
+
+    // Update currentTaskId when taskId from hook changes
+    useEffect(() => {
+        if (taskId !== null && taskId !== currentTaskId) {
+            setCurrentTaskId(taskId);
+        }
+    }, [taskId]);
+
+    // Handle new task creation
+    const handleNewTask = async () => {
+        try {
+            const response = await fetch('http://localhost:8000/api/tasks', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ title: 'New Task' }),
+            });
+            if (response.ok) {
+                const newTask = await response.json();
+                setCurrentTaskId(newTask.id);
+                // Reset session to start fresh
+                if (loadTask) {
+                    await loadTask(newTask.id);
+                }
+                await fetchTasks();
+            }
+        } catch (error) {
+            console.error('Error creating task:', error);
+        }
+    };
+
+    // Handle task selection
+    const handleTaskSelect = async (taskId: number) => {
+        if (taskId === currentTaskId) return;
+        
+        try {
+            setCurrentTaskId(taskId);
+            if (loadTask) {
+                await loadTask(taskId);
+            }
+            // Refresh tasks list to get updated cumulative usage
+            await fetchTasks();
+        } catch (error) {
+            console.error('Error loading task:', error);
+        }
+    };
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -64,7 +137,14 @@ function AppWithEvents() {
 
     return (
         <div className="app-layout">
-            <Sidebar isOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
+            <Sidebar 
+                isOpen={isSidebarOpen} 
+                toggleSidebar={toggleSidebar}
+                tasks={tasks}
+                currentTaskId={currentTaskId}
+                onNewTask={handleNewTask}
+                onTaskSelect={handleTaskSelect}
+            />
 
             <main className="main-content">
                 {!hasMessages ? (
@@ -252,6 +332,39 @@ function AppWithEvents() {
                                         }
                                     }
 
+                                    // Show cost info on the last assistant message when run is finished
+                                    // Check if this is the last assistant message that's complete
+                                    const isLastAssistantMessage = 
+                                        item.message?.role === 'assistant' && 
+                                        item.message?.isComplete &&
+                                        !state.isRunning &&
+                                        // Check if this is the last assistant message in the list
+                                        (() => {
+                                            // Find the last assistant message index
+                                            let lastAssistantIndex = -1;
+                                            for (let i = grouped.length - 1; i >= 0; i--) {
+                                                if (grouped[i].message?.role === 'assistant' && grouped[i].message?.isComplete) {
+                                                    lastAssistantIndex = i;
+                                                    break;
+                                                }
+                                            }
+                                            return index === lastAssistantIndex;
+                                        })();
+                                    
+                                    if (isLastAssistantMessage) {
+                                        console.log('[AppWithEvents] Last assistant message found');
+                                        console.log('[AppWithEvents] state.usage:', state.usage);
+                                        console.log('[AppWithEvents] state.isRunning:', state.isRunning);
+                                    }
+                                    
+                                    // Get cumulative usage from current task
+                                    const currentTask = tasks.find(t => t.id === currentTaskId);
+                                    const cumulativeUsage = currentTask ? {
+                                        total_cost_usd: currentTask.total_cost_usd,
+                                        total_input_tokens: currentTask.total_input_tokens,
+                                        total_output_tokens: currentTask.total_output_tokens,
+                                    } : undefined;
+                                    
                                     return (
                                         <EventMessage
                                             key={item.id}
@@ -259,6 +372,9 @@ function AppWithEvents() {
                                             thinking={item.thinking}
                                             toolCall={item.toolCall}
                                             hideHeader={hideHeader}
+                                            usage={isLastAssistantMessage ? state.usage : undefined}
+                                            cumulativeUsage={cumulativeUsage}
+                                            showCumulative={isLastAssistantMessage}
                                         />
                                     );
                                 });

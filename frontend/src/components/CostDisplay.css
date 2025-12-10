@@ -1,0 +1,115 @@
+/* Cost Display - Elegant and Subtle */
+.cost-display {
+    display: flex;
+    justify-content: flex-start;
+    margin-top: 8px;
+    margin-bottom: 4px;
+    opacity: 0.6;
+    transition: opacity 0.2s ease;
+}
+
+.cost-display:hover {
+    opacity: 0.9;
+}
+
+.cost-display-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px;
+    background: rgba(0, 0, 0, 0.02);
+    border-radius: 12px;
+    font-size: 11px;
+    color: #666;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+.cost-main {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.cost-icon {
+    color: #888;
+    opacity: 0.7;
+}
+
+.cost-amount {
+    font-weight: 500;
+    color: #555;
+    letter-spacing: 0.2px;
+}
+
+.cumulative-label {
+    font-size: 9px;
+    color: #999;
+    margin-left: 4px;
+    font-weight: normal;
+    opacity: 0.7;
+}
+
+.cost-details {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-left: 8px;
+    border-left: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.cost-token-info {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.token-icon {
+    color: #999;
+    opacity: 0.6;
+}
+
+.token-count {
+    color: #777;
+    font-size: 10px;
+}
+
+.cache-badge {
+    padding: 1px 6px;
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+    border-radius: 8px;
+    font-size: 9px;
+    font-weight: 500;
+    margin-left: 4px;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .cost-display-content {
+        background: rgba(255, 255, 255, 0.05);
+        color: #aaa;
+    }
+    
+    .cost-amount {
+        color: #ccc;
+    }
+    
+    .token-count {
+        color: #999;
+    }
+    
+    .cost-icon,
+    .token-icon {
+        color: #888;
+    }
+    
+    .cost-details {
+        border-left-color: rgba(255, 255, 255, 0.1);
+    }
+    
+    .cache-badge {
+        background: rgba(59, 130, 246, 0.2);
+        color: #60a5fa;
+    }
+}
+

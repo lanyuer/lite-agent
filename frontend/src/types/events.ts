@@ -10,7 +10,7 @@
 export interface BaseEvent {
     type: string;
     timestamp: string;
-    rawEvent?: any;
+    raw_event?: any;
 }
 
 // ============================================================================
@@ -19,36 +19,44 @@ export interface BaseEvent {
 
 export interface RunStarted extends BaseEvent {
     type: 'RunStarted';
-    runId: string;
-    sessionId?: string;
+    run_id: string;
+    session_id?: string;
 }
 
 export interface RunFinished extends BaseEvent {
     type: 'RunFinished';
-    runId: string;
-    durationMs?: number;
-    totalCostUsd?: number;
+    run_id: string;
+    duration_ms?: number;
+    total_cost_usd?: number;
+    usage?: {
+        input_tokens?: number;
+        output_tokens?: number;
+        cache_creation_input_tokens?: number;
+        cache_read_input_tokens?: number;
+        total_cost_usd?: number;
+        [key: string]: any;
+    };
 }
 
 export interface RunError extends BaseEvent {
     type: 'RunError';
-    runId: string;
+    run_id: string;
     error: string;
-    errorType?: string;
+    error_type?: string;
 }
 
 export interface StepStarted extends BaseEvent {
     type: 'StepStarted';
-    stepId: string;
-    runId: string;
-    stepName?: string;
+    step_id: string;
+    run_id: string;
+    step_name?: string;
 }
 
 export interface StepFinished extends BaseEvent {
     type: 'StepFinished';
-    stepId: string;
-    runId: string;
-    durationMs?: number;
+    step_id: string;
+    run_id: string;
+    duration_ms?: number;
 }
 
 // ============================================================================
@@ -57,19 +65,19 @@ export interface StepFinished extends BaseEvent {
 
 export interface TextMessageStart extends BaseEvent {
     type: 'TextMessageStart';
-    messageId: string;
+    message_id: string;
     role: 'user' | 'assistant' | 'system';
 }
 
 export interface TextMessageContent extends BaseEvent {
     type: 'TextMessageContent';
-    messageId: string;
+    message_id: string;
     delta: string;
 }
 
 export interface TextMessageEnd extends BaseEvent {
     type: 'TextMessageEnd';
-    messageId: string;
+    message_id: string;
 }
 
 // ============================================================================
@@ -78,29 +86,29 @@ export interface TextMessageEnd extends BaseEvent {
 
 export interface ToolCallStart extends BaseEvent {
     type: 'ToolCallStart';
-    toolCallId: string;
-    toolCallName: string;
-    parentMessageId?: string;
+    tool_call_id: string;
+    tool_call_name: string;
+    parent_message_id?: string;
 }
 
 export interface ToolCallArgs extends BaseEvent {
     type: 'ToolCallArgs';
-    toolCallId: string;
+    tool_call_id: string;
     delta: string;
 }
 
 export interface ToolCallEnd extends BaseEvent {
     type: 'ToolCallEnd';
-    toolCallId: string;
+    tool_call_id: string;
 }
 
 export interface ToolCallResult extends BaseEvent {
     type: 'ToolCallResult';
-    messageId: string;
-    toolCallId: string;
+    message_id: string;
+    tool_call_id: string;
     content: any;
     role: 'tool';
-    isError: boolean;
+    is_error: boolean;
 }
 
 // ============================================================================
@@ -109,19 +117,19 @@ export interface ToolCallResult extends BaseEvent {
 
 export interface ThinkingStart extends BaseEvent {
     type: 'ThinkingStart';
-    thinkingId: string;
-    parentMessageId?: string;
+    thinking_id: string;
+    parent_message_id?: string;
 }
 
 export interface ThinkingContent extends BaseEvent {
     type: 'ThinkingContent';
-    thinkingId: string;
+    thinking_id: string;
     delta: string;
 }
 
 export interface ThinkingEnd extends BaseEvent {
     type: 'ThinkingEnd';
-    thinkingId: string;
+    thinking_id: string;
 }
 
 // ============================================================================

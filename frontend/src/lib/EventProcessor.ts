@@ -34,14 +34,24 @@ export interface ToolCallState {
     sequence: number; // For ordering
 }
 
+export interface UsageInfo {
+    input_tokens?: number;
+    output_tokens?: number;
+    cache_creation_input_tokens?: number;
+    cache_read_input_tokens?: number;
+    total_cost_usd?: number;
+    [key: string]: any;
+}
+
 export interface RunState {
-    runId: string;
+    run_id: string;
     messages: Map<string, MessageState>;
     thinking: Map<string, ThinkingState>;
     toolCalls: Map<string, ToolCallState>;
     isRunning: boolean;
     error?: string;
     sequenceCounter: number; // Global sequence counter
+    usage?: UsageInfo; // Token usage and cost information
 }
 
 export class EventProcessor {
@@ -51,7 +61,7 @@ export class EventProcessor {
     constructor(handlers: EventHandlers = {}) {
         this.handlers = handlers;
         this.state = {
-            runId: '',
+            run_id: '',
             messages: new Map(),
             thinking: new Map(),
             toolCalls: new Map(),
@@ -69,7 +79,7 @@ export class EventProcessor {
         switch (event.type) {
             case 'RunStarted':
                 console.log('[EventProcessor] RunStarted - setting isRunning = true');
-                this.state.runId = (event as any).runId;
+                this.state.run_id = (event as any).run_id;
                 this.state.isRunning = true;
                 this.state.error = undefined;
                 break;
@@ -77,6 +87,35 @@ export class EventProcessor {
             case 'RunFinished':
                 console.log('[EventProcessor] RunFinished - setting isRunning = false');
                 this.state.isRunning = false;
+                // Store usage information if available
+                const runFinishedEvent = event as any;
+                console.log('[EventProcessor] RunFinished event:', runFinishedEvent);
+                console.log('[EventProcessor] total_cost_usd:', runFinishedEvent.total_cost_usd);
+                console.log('[EventProcessor] usage:', runFinishedEvent.usage);
+                
+                // Extract usage and cost (using snake_case)
+                const totalCost = runFinishedEvent.total_cost_usd;
+                const usageData = runFinishedEvent.usage || {};
+                
+                console.log('[EventProcessor] Extracted totalCost:', totalCost);
+                console.log('[EventProcessor] Extracted usageData:', usageData);
+                
+                if (usageData && Object.keys(usageData).length > 0) {
+                    // Merge usage data with total_cost_usd
+                    this.state.usage = {
+                        ...usageData,
+                        total_cost_usd: totalCost !== undefined && totalCost !== null ? totalCost : (usageData.total_cost_usd || 0),
+                    };
+                    console.log('[EventProcessor] Stored usage:', this.state.usage);
+                } else if (totalCost !== undefined && totalCost !== null) {
+                    // If we have cost but no usage object, create one
+                    this.state.usage = {
+                        total_cost_usd: totalCost,
+                    };
+                    console.log('[EventProcessor] Stored usage (cost only):', this.state.usage);
+                } else {
+                    console.log('[EventProcessor] No usage information in RunFinished event');
+                }
                 break;
 
             case 'RunError':
@@ -85,8 +124,8 @@ export class EventProcessor {
                 break;
 
             case 'TextMessageStart':
-                this.state.messages.set((event as any).messageId, {
-                    id: (event as any).messageId,
+                this.state.messages.set((event as any).message_id, {
+                    id: (event as any).message_id,
                     role: (event as any).role,
                     content: '',
                     isComplete: false,
@@ -96,7 +135,7 @@ export class EventProcessor {
 
             case 'TextMessageContent':
                 {
-                    const msg = this.state.messages.get((event as any).messageId);
+                    const msg = this.state.messages.get((event as any).message_id);
                     if (msg) {
                         msg.content += (event as any).delta;
                     }
@@ -105,7 +144,7 @@ export class EventProcessor {
 
             case 'TextMessageEnd':
                 {
-                    const msg = this.state.messages.get((event as any).messageId);
+                    const msg = this.state.messages.get((event as any).message_id);
                     if (msg) {
                         msg.isComplete = true;
                     }
@@ -113,8 +152,8 @@ export class EventProcessor {
                 break;
 
             case 'ThinkingStart':
-                this.state.thinking.set((event as any).thinkingId, {
-                    id: (event as any).thinkingId,
+                this.state.thinking.set((event as any).thinking_id, {
+                    id: (event as any).thinking_id,
                     content: '',
                     isComplete: false,
                     sequence: this.state.sequenceCounter++,
@@ -123,7 +162,7 @@ export class EventProcessor {
 
             case 'ThinkingContent':
                 {
-                    const thinking = this.state.thinking.get((event as any).thinkingId);
+                    const thinking = this.state.thinking.get((event as any).thinking_id);
                     if (thinking) {
                         thinking.content += (event as any).delta;
                     }
@@ -132,7 +171,7 @@ export class EventProcessor {
 
             case 'ThinkingEnd':
                 {
-                    const thinking = this.state.thinking.get((event as any).thinkingId);
+                    const thinking = this.state.thinking.get((event as any).thinking_id);
                     if (thinking) {
                         thinking.isComplete = true;
                     }
@@ -140,9 +179,9 @@ export class EventProcessor {
                 break;
 
             case 'ToolCallStart':
-                this.state.toolCalls.set((event as any).toolCallId, {
-                    id: (event as any).toolCallId,
-                    name: (event as any).toolCallName,
+                this.state.toolCalls.set((event as any).tool_call_id, {
+                    id: (event as any).tool_call_id,
+                    name: (event as any).tool_call_name,
                     args: '',
                     isComplete: false,
                     sequence: this.state.sequenceCounter++,
@@ -151,7 +190,7 @@ export class EventProcessor {
 
             case 'ToolCallArgs':
                 {
-                    const toolCall = this.state.toolCalls.get((event as any).toolCallId);
+                    const toolCall = this.state.toolCalls.get((event as any).tool_call_id);
                     if (toolCall) {
                         toolCall.args += (event as any).delta;
                     }
@@ -160,7 +199,7 @@ export class EventProcessor {
 
             case 'ToolCallEnd':
                 {
-                    const toolCall = this.state.toolCalls.get((event as any).toolCallId);
+                    const toolCall = this.state.toolCalls.get((event as any).tool_call_id);
                     if (toolCall) {
                         toolCall.isComplete = true;
                     }
@@ -169,10 +208,10 @@ export class EventProcessor {
 
             case 'ToolCallResult':
                 {
-                    const toolCall = this.state.toolCalls.get((event as any).toolCallId);
+                    const toolCall = this.state.toolCalls.get((event as any).tool_call_id);
                     if (toolCall) {
                         toolCall.result = (event as any).content;
-                        toolCall.isError = (event as any).isError;
+                        toolCall.isError = (event as any).is_error;
                     }
                 }
                 break;
@@ -193,49 +232,49 @@ export class EventProcessor {
     private callHandler(event: AgentEvent): void {
         switch (event.type) {
             case 'RunStarted':
-                if ('runId' in event) this.handlers.onRunStarted?.(event);
+                if ('run_id' in event) this.handlers.onRunStarted?.(event);
                 break;
             case 'RunFinished':
-                if ('runId' in event) this.handlers.onRunFinished?.(event);
+                if ('run_id' in event) this.handlers.onRunFinished?.(event);
                 break;
             case 'RunError':
-                if ('runId' in event && 'error' in event) this.handlers.onRunError?.(event);
+                if ('run_id' in event && 'error' in event) this.handlers.onRunError?.(event);
                 break;
             case 'StepStarted':
-                if ('stepId' in event) this.handlers.onStepStarted?.(event);
+                if ('step_id' in event) this.handlers.onStepStarted?.(event);
                 break;
             case 'StepFinished':
-                if ('stepId' in event) this.handlers.onStepFinished?.(event);
+                if ('step_id' in event) this.handlers.onStepFinished?.(event);
                 break;
             case 'TextMessageStart':
-                if ('messageId' in event) this.handlers.onTextMessageStart?.(event);
+                if ('message_id' in event) this.handlers.onTextMessageStart?.(event);
                 break;
             case 'TextMessageContent':
-                if ('messageId' in event && 'delta' in event) this.handlers.onTextMessageContent?.(event);
+                if ('message_id' in event && 'delta' in event) this.handlers.onTextMessageContent?.(event);
                 break;
             case 'TextMessageEnd':
-                if ('messageId' in event) this.handlers.onTextMessageEnd?.(event);
+                if ('message_id' in event) this.handlers.onTextMessageEnd?.(event);
                 break;
             case 'ToolCallStart':
-                if ('toolCallId' in event) this.handlers.onToolCallStart?.(event);
+                if ('tool_call_id' in event) this.handlers.onToolCallStart?.(event);
                 break;
             case 'ToolCallArgs':
-                if ('toolCallId' in event && 'delta' in event) this.handlers.onToolCallArgs?.(event);
+                if ('tool_call_id' in event && 'delta' in event) this.handlers.onToolCallArgs?.(event);
                 break;
             case 'ToolCallEnd':
-                if ('toolCallId' in event) this.handlers.onToolCallEnd?.(event);
+                if ('tool_call_id' in event) this.handlers.onToolCallEnd?.(event);
                 break;
             case 'ToolCallResult':
-                if ('toolCallId' in event && 'content' in event) this.handlers.onToolCallResult?.(event);
+                if ('tool_call_id' in event && 'content' in event) this.handlers.onToolCallResult?.(event);
                 break;
             case 'ThinkingStart':
-                if ('thinkingId' in event) this.handlers.onThinkingStart?.(event);
+                if ('thinking_id' in event) this.handlers.onThinkingStart?.(event);
                 break;
             case 'ThinkingContent':
-                if ('thinkingId' in event && 'delta' in event) this.handlers.onThinkingContent?.(event);
+                if ('thinking_id' in event && 'delta' in event) this.handlers.onThinkingContent?.(event);
                 break;
             case 'ThinkingEnd':
-                if ('thinkingId' in event) this.handlers.onThinkingEnd?.(event);
+                if ('thinking_id' in event) this.handlers.onThinkingEnd?.(event);
                 break;
             case 'StateSnapshot':
                 if ('state' in event) this.handlers.onStateSnapshot?.(event);
@@ -260,12 +299,13 @@ export class EventProcessor {
      */
     reset(): void {
         this.state = {
-            runId: '',
+            run_id: '',
             messages: new Map(),
             thinking: new Map(),
             toolCalls: new Map(),
             isRunning: false,
             sequenceCounter: 0,
+            usage: undefined,
         };
     }
 }

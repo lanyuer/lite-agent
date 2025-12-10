@@ -3,6 +3,7 @@ import { Terminal, CheckCircle, XCircle, ChevronDown, ChevronRight, Lightbulb, L
 import type { MessageState, ThinkingState, ToolCallState } from '../lib/EventProcessor';
 import { StreamingMarkdown } from './StreamingMarkdown';
 import { StreamingText } from './StreamingText';
+import { CostDisplay } from './CostDisplay';
 import './EventMessage.css';
 
 interface EventMessageProps {
@@ -10,13 +11,23 @@ interface EventMessageProps {
     thinking?: ThinkingState;
     toolCall?: ToolCallState;
     hideHeader?: boolean;
+    usage?: any; // Usage information for cost display
+    cumulativeUsage?: {
+        total_cost_usd?: number;
+        total_input_tokens?: number;
+        total_output_tokens?: number;
+    };
+    showCumulative?: boolean; // Whether to show cumulative usage
 }
 
 export const EventMessage: React.FC<EventMessageProps> = ({
     message,
     thinking,
     toolCall,
-    hideHeader = false
+    hideHeader = false,
+    usage,
+    cumulativeUsage,
+    showCumulative = false
 }) => {
     const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
     const [isToolExpanded, setIsToolExpanded] = useState(false);
@@ -152,6 +163,15 @@ export const EventMessage: React.FC<EventMessageProps> = ({
                             </div>
                         )}
                     </div>
+                    
+                    {/* Show cost info when message is complete */}
+                    {message.isComplete && (usage || (showCumulative && cumulativeUsage)) && (
+                        <CostDisplay 
+                            usage={usage} 
+                            cumulativeUsage={cumulativeUsage}
+                            showCumulative={showCumulative}
+                        />
+                    )}
                 </div>
             </div>
         );
