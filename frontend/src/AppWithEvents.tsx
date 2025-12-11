@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Send, StopCircle, Paperclip, Mic, ArrowUp, Plus } from 'lucide-react';
 import { Sidebar, type Task } from './components/Sidebar';
 import { EventMessage } from './components/EventMessage';
@@ -7,16 +8,17 @@ import type { MessageState, ThinkingState, ToolCallState } from './lib/EventProc
 import './App.css';
 
 function AppWithEvents() {
+    const { taskId } = useParams<{ taskId?: string }>();
+    const navigate = useNavigate();
     const [input, setInput] = useState('');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [tasks, setTasks] = useState<Task[]>([]);
-    const [currentTaskId, setCurrentTaskId] = useState<number | null>(null);
+    const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
     const [isLoadingTasks, setIsLoadingTasks] = useState(true);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-    const { state, sendMessage, stopGeneration, loadTask, taskId } = useAgentEvents({
-        taskId: currentTaskId,
+    const { state, sendMessage, stopGeneration, loadTask, setTaskId, resetSession } = useAgentEvents({
         onError: (error) => {
             console.error('Agent error:', error);
             alert(`Error: ${error}`);
@@ -26,12 +28,19 @@ function AppWithEvents() {
             // Refresh tasks list after completion
             await fetchTasks();
         },
+        onTaskIdReceived: (taskId: string) => {
+            // When a new task_id is received (e.g., from SessionInfo event), update URL
+            console.log(`[AppWithEvents] New task_id received: ${taskId}, updating URL`);
+            if (taskId !== currentTaskId) {
+                navigate(`/task/${taskId}`, { replace: true });
+            }
+        },
     });
 
     // Fetch tasks from API
     const fetchTasks = async () => {
         try {
-            const response = await fetch('http://localhost:8000/api/tasks');
+            const response = await fetch('http://localhost:8000/api/v1/tasks');
             if (response.ok) {
                 const data = await response.json();
                 setTasks(data);
@@ -48,30 +57,55 @@ function AppWithEvents() {
         fetchTasks();
     }, []);
 
-    // Update currentTaskId when taskId from hook changes
+    // Sync currentTaskId with URL params (one-way: URL -> state)
+    // Only update when URL actually changes, not when currentTaskId changes
     useEffect(() => {
-        if (taskId !== null && taskId !== currentTaskId) {
+        if (taskId && taskId !== currentTaskId) {
+            console.log(`[AppWithEvents] URL taskId changed: ${taskId}, loading task...`);
             setCurrentTaskId(taskId);
+            if (loadTask) {
+                loadTask(taskId).catch(console.error);
+            }
+        } else if (!taskId && currentTaskId) {
+            // If URL has no taskId but we have one, clear it (user navigated away)
+            console.log('[AppWithEvents] URL has no taskId, clearing current task');
+            setCurrentTaskId(null);
+            if (resetSession) {
+                resetSession();
+            }
         }
-    }, [taskId]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [taskId]); // Only depend on taskId from URL, not currentTaskId to avoid loops
+
+    // Update taskId in hook when currentTaskId changes
+    useEffect(() => {
+        if (setTaskId) {
+            setTaskId(currentTaskId);
+        }
+    }, [currentTaskId, setTaskId]);
 
     // Handle new task creation
     const handleNewTask = async () => {
         try {
-            const response = await fetch('http://localhost:8000/api/tasks', {
+            // Stop any ongoing generation before creating new task
+            if (state.isRunning) {
+                console.log('[AppWithEvents] Stopping ongoing generation before creating new task');
+                stopGeneration();
+                // Wait a bit for the abort to take effect
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+            const response = await fetch('http://localhost:8000/api/v1/tasks', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ title: 'New Task' }),
+                body: JSON.stringify({ title: undefined }),
             });
             if (response.ok) {
                 const newTask = await response.json();
-                setCurrentTaskId(newTask.id);
-                // Reset session to start fresh
-                if (loadTask) {
-                    await loadTask(newTask.id);
-                }
+                // Navigate to new task URL first (this will trigger useEffect to load task)
+                navigate(`/task/${newTask.id}`, { replace: true });
                 await fetchTasks();
             }
         } catch (error) {
@@ -80,18 +114,46 @@ function AppWithEvents() {
     };
 
     // Handle task selection
-    const handleTaskSelect = async (taskId: number) => {
+    const handleTaskSelect = async (taskId: string) => {
         if (taskId === currentTaskId) return;
         
         try {
-            setCurrentTaskId(taskId);
-            if (loadTask) {
-                await loadTask(taskId);
+            // Stop any ongoing generation before switching tasks
+            if (state.isRunning) {
+                console.log('[AppWithEvents] Stopping ongoing generation before switching tasks');
+                stopGeneration();
+                // Wait a bit for the abort to take effect
+                await new Promise(resolve => setTimeout(resolve, 100));
             }
+            
+            // Navigate to task URL (this will trigger useEffect to load task)
+            navigate(`/task/${taskId}`, { replace: true });
             // Refresh tasks list to get updated cumulative usage
             await fetchTasks();
         } catch (error) {
             console.error('Error loading task:', error);
+        }
+    };
+
+    // Handle task deletion
+    const handleTaskDelete = async (taskId: string) => {
+        try {
+            const response = await fetch(`http://localhost:8000/api/v1/tasks/${taskId}`, {
+                method: 'DELETE',
+            });
+            if (response.ok || response.status === 204) {
+                // If deleted task was current, navigate to home (this will trigger useEffect to clear state)
+                if (taskId === currentTaskId) {
+                    navigate('/', { replace: true });
+                }
+                // Refresh tasks list
+                await fetchTasks();
+            } else {
+                throw new Error('Failed to delete task');
+            }
+        } catch (error) {
+            console.error('Error deleting task:', error);
+            alert(`Failed to delete task: ${error}`);
         }
     };
 
@@ -144,6 +206,7 @@ function AppWithEvents() {
                 currentTaskId={currentTaskId}
                 onNewTask={handleNewTask}
                 onTaskSelect={handleTaskSelect}
+                onTaskDelete={handleTaskDelete}
             />
 
             <main className="main-content">

@@ -15,7 +15,7 @@ class ConversationService:
     @staticmethod
     def create_user_message(
         db: Session,
-        task_id: int,
+        task_id: str,
         content: str
     ) -> Conversation:
         """Create a user message."""
@@ -32,7 +32,7 @@ class ConversationService:
     @staticmethod
     def create_assistant_message(
         db: Session,
-        task_id: int,
+        task_id: str,
         content: str,
         cost_usd: Optional[float] = None,
         input_tokens: Optional[int] = None,

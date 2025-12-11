@@ -58,12 +58,24 @@ class SystemMessageConverter(MessageConverter):
         return msg_type == 'SystemMessage'
     
     async def convert(self, message: Any) -> AsyncGenerator[AgentEvent, None]:
+        # Extract session_id from message.data if available (for init messages)
+        # According to SDK docs and test_multiconv.py, session_id is in message.data.get('session_id')
+        message_data = getattr(message, 'data', {})
+        session_id = None
+        if isinstance(message_data, dict):
+            session_id = message_data.get('session_id')
+        
+        data = {
+            'subtype': getattr(message, 'subtype', None),
+            'data': message_data,
+        }
+        # Include session_id at top level for easier access
+        if session_id:
+            data['session_id'] = session_id
+        
         yield CustomEvent(
             type='SystemMessage',
-            data={
-                'subtype': getattr(message, 'subtype', None),
-                'data': getattr(message, 'data', {}),
-            }
+            data=data
         )
 
 
@@ -170,16 +182,30 @@ class ResultMessageConverter(MessageConverter):
         if total_cost:
             self.adapter._result_message_cost = total_cost
         
+        # Extract session_id from ResultMessage if available
+        # According to test_multiconv.py, ResultMessage has session_id attribute
+        session_id = getattr(message, 'session_id', None)
+        
+        data = {
+            'subtype': getattr(message, 'subtype', None),
+            'duration_ms': getattr(message, 'duration_ms', None),
+            'is_error': getattr(message, 'is_error', False),
+        }
+        if usage_data:
+            data['usage'] = usage_data
+        if total_cost is not None:
+            data['total_cost_usd'] = total_cost
+        # Include session_id if present
+        if session_id:
+            data['session_id'] = session_id
+        # Include result if available
+        result = getattr(message, 'result', None)
+        if result is not None:
+            data['result'] = result
+        
         yield CustomEvent(
             type='ResultMessage',
-            data={
-                'subtype': getattr(message, 'subtype', None),
-                'duration_ms': getattr(message, 'duration_ms', None),
-                'is_error': getattr(message, 'is_error', False),
-                'result': getattr(message, 'result', None),
-                'usage': usage_data,  # Include usage in ResultMessage
-                'total_cost_usd': total_cost,
-            }
+            data=data
         )
 
 

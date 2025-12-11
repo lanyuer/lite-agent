@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
     Plus,
     Search,
@@ -6,12 +6,14 @@ import {
     Settings,
     PanelLeftClose,
     PanelLeft,
-    MessageSquare
+    MessageSquare,
+    Trash2,
+    X
 } from 'lucide-react';
 import './Sidebar.css';
 
 export interface Task {
-    id: number;
+    id: string;
     title: string;
     session_id: string | null;
     created_at: string;
@@ -25,9 +27,10 @@ interface SidebarProps {
     isOpen: boolean;
     toggleSidebar: () => void;
     tasks: Task[];
-    currentTaskId: number | null;
+    currentTaskId: string | null;
     onNewTask: () => void;
-    onTaskSelect: (taskId: number) => void;
+    onTaskSelect: (taskId: string) => void;
+    onTaskDelete: (taskId: string) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
@@ -36,8 +39,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     tasks, 
     currentTaskId,
     onNewTask,
-    onTaskSelect 
+    onTaskSelect,
+    onTaskDelete
 }) => {
+    const [hoveredTaskId, setHoveredTaskId] = useState<number | null>(null);
     return (
         <div className={`sidebar ${isOpen ? 'open' : 'closed'}`}>
             <div className="sidebar-header">
@@ -84,11 +89,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                 key={task.id}
                                 className={`nav-item ${currentTaskId === task.id ? 'active' : ''}`}
                                 onClick={() => onTaskSelect(task.id)}
+                                onMouseEnter={() => setHoveredTaskId(task.id)}
+                                onMouseLeave={() => setHoveredTaskId(null)}
                             >
                                 <MessageSquare size={18} />
                                 <span className="text-truncate" title={task.title}>
                                     {task.title}
                                 </span>
+                                {hoveredTaskId === task.id && (
+                                    <button
+                                        className="task-delete-btn"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (window.confirm(`Delete task "${task.title}"?`)) {
+                                                onTaskDelete(task.id);
+                                            }
+                                        }}
+                                        title="Delete task"
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
+                                )}
                             </div>
                         ))
                     )}

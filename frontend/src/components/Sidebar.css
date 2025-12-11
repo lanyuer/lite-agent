@@ -122,6 +122,7 @@
     cursor: pointer;
     transition: all 0.2s;
     white-space: nowrap;
+    position: relative;
 }
 
 .nav-item:hover {

@@ -9,6 +9,7 @@ from app.schemas.task import (
 )
 from app.schemas.conversation import ConversationResponse
 from app.schemas.chat import ResponseRequest
+from app.schemas.event import EventResponse
 
 __all__ = [
     "TaskCreate",
@@ -17,4 +18,5 @@ __all__ = [
     "TaskWithConversations",
     "ConversationResponse",
     "ResponseRequest",
+    "EventResponse",
 ]

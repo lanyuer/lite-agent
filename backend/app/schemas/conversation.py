@@ -9,7 +9,7 @@ from datetime import datetime
 class ConversationResponse(BaseModel):
     """Response schema for conversation message."""
     id: int
-    task_id: int
+    task_id: str
     role: str
     content: str
     created_at: datetime

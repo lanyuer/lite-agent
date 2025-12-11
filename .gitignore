@@ -6,3 +6,5 @@ backend/uv.lock
 minimax.env
 backend/.python-version
 .DS_Store
+frontend/package-lock.json
+backend/lite_agent.db

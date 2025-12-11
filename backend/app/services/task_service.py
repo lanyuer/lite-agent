@@ -2,6 +2,7 @@
 Task business logic service.
 """
 from typing import List, Optional
+from datetime import datetime
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
@@ -16,7 +17,12 @@ class TaskService:
     @staticmethod
     def create_task(db: Session, task_data: TaskCreate) -> Task:
         """Create a new task."""
-        title = task_data.title or "New Task"
+        if task_data.title:
+            title = task_data.title
+        else:
+            # Generate default title based on current time
+            now = datetime.now()
+            title = f"对话 {now.strftime('%Y-%m-%d %H:%M')}"
         task = Task(title=title, session_id=None)
         db.add(task)
         db.commit()
@@ -24,7 +30,7 @@ class TaskService:
         return task
     
     @staticmethod
-    def get_task(db: Session, task_id: int) -> Task:
+    def get_task(db: Session, task_id: str) -> Task:
         """Get a task by ID."""
         task = db.query(Task).filter(Task.id == task_id).first()
         if not task:
@@ -41,7 +47,7 @@ class TaskService:
         return db.query(Task).order_by(Task.updated_at.desc()).offset(skip).limit(limit).all()
     
     @staticmethod
-    def update_task(db: Session, task_id: int, task_data: TaskUpdate) -> Task:
+    def update_task(db: Session, task_id: str, task_data: TaskUpdate) -> Task:
         """Update a task."""
         task = TaskService.get_task(db, task_id)
         
@@ -53,14 +59,14 @@ class TaskService:
         return task
     
     @staticmethod
-    def delete_task(db: Session, task_id: int) -> None:
+    def delete_task(db: Session, task_id: str) -> None:
         """Delete a task and all its conversations."""
         task = TaskService.get_task(db, task_id)
         db.delete(task)
         db.commit()
     
     @staticmethod
-    def get_task_conversations(db: Session, task_id: int) -> List[Conversation]:
+    def get_task_conversations(db: Session, task_id: str) -> List[Conversation]:
         """Get all conversations for a task."""
         TaskService.get_task(db, task_id)  # Verify task exists
         return db.query(Conversation).filter(
@@ -80,7 +86,13 @@ class TaskService:
                 return task
         
         # Create new task
-        task_title = title or "New Task"
+        if title:
+            task_title = title
+        else:
+            # Generate default title based on current time
+            now = datetime.now()
+            task_title = f"对话 {now.strftime('%Y-%m-%d %H:%M')}"
+        
         if len(task_title) > 50:
             task_title = task_title[:50] + "..."
         
@@ -93,7 +105,7 @@ class TaskService:
     @staticmethod
     def update_task_usage(
         db: Session,
-        task_id: int,
+        task_id: str,
         cost_usd: Optional[float] = None,
         input_tokens: Optional[int] = None,
         output_tokens: Optional[int] = None

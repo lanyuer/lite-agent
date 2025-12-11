@@ -13,7 +13,9 @@ from app.schemas.task import (
     TaskWithConversations,
 )
 from app.schemas.conversation import ConversationResponse
+from app.schemas.event import EventResponse
 from app.services.task_service import TaskService
+from app.services.event_service import EventService
 
 router = APIRouter()
 
@@ -39,7 +41,7 @@ async def list_tasks(
 
 @router.get("/{task_id}", response_model=TaskWithConversations)
 async def get_task(
-    task_id: int,
+    task_id: str,
     db: Session = Depends(get_db)
 ):
     """Get a task with its conversations."""
@@ -48,7 +50,7 @@ async def get_task(
 
 @router.put("/{task_id}", response_model=TaskResponse)
 async def update_task(
-    task_id: int,
+    task_id: str,
     task_data: TaskUpdate,
     db: Session = Depends(get_db)
 ):
@@ -58,7 +60,7 @@ async def update_task(
 
 @router.delete("/{task_id}", status_code=204)
 async def delete_task(
-    task_id: int,
+    task_id: str,
     db: Session = Depends(get_db)
 ):
     """Delete a task and all its conversations."""
@@ -68,8 +70,19 @@ async def delete_task(
 
 @router.get("/{task_id}/conversations", response_model=List[ConversationResponse])
 async def get_task_conversations(
-    task_id: int,
+    task_id: str,
     db: Session = Depends(get_db)
 ):
     """Get all conversations for a task."""
     return TaskService.get_task_conversations(db, task_id)
+
+
+@router.get("/{task_id}/events", response_model=List[EventResponse])
+async def get_task_events(
+    task_id: str,
+    db: Session = Depends(get_db)
+):
+    """Get all events for a task, ordered by sequence."""
+    # Verify task exists
+    TaskService.get_task(db, task_id)
+    return EventService.get_task_events(db, task_id)

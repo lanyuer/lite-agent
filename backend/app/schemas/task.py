@@ -20,7 +20,7 @@ class TaskUpdate(BaseModel):
 
 class TaskResponse(BaseModel):
     """Response schema for task."""
-    id: int
+    id: str
     title: str
     session_id: Optional[str] = None
     created_at: datetime

@@ -72,8 +72,10 @@ export class EventProcessor {
 
     /**
      * Process a single event and update state.
+     * @param event The event to process
+     * @param sequence Optional sequence number (for loading from database). If not provided, uses sequenceCounter++.
      */
-    processEvent(event: AgentEvent): void {
+    processEvent(event: AgentEvent, sequence?: number): void {
         // Update state FIRST, before calling handlers
         // This ensures handlers see the updated state
         switch (event.type) {
@@ -124,13 +126,21 @@ export class EventProcessor {
                 break;
 
             case 'TextMessageStart':
-                this.state.messages.set((event as any).message_id, {
-                    id: (event as any).message_id,
-                    role: (event as any).role,
-                    content: '',
-                    isComplete: false,
-                    sequence: this.state.sequenceCounter++,
-                });
+                {
+                    const msgId = (event as any).message_id;
+                    const existingMsg = this.state.messages.get(msgId);
+                    if (!existingMsg) {
+                        // Use provided sequence or auto-increment
+                        const msgSequence = sequence !== undefined ? sequence : this.state.sequenceCounter++;
+                        this.state.messages.set(msgId, {
+                            id: msgId,
+                            role: (event as any).role,
+                            content: '',
+                            isComplete: false,
+                            sequence: msgSequence,
+                        });
+                    }
+                }
                 break;
 
             case 'TextMessageContent':
@@ -152,12 +162,20 @@ export class EventProcessor {
                 break;
 
             case 'ThinkingStart':
-                this.state.thinking.set((event as any).thinking_id, {
-                    id: (event as any).thinking_id,
-                    content: '',
-                    isComplete: false,
-                    sequence: this.state.sequenceCounter++,
-                });
+                {
+                    const thinkingId = (event as any).thinking_id;
+                    const existingThinking = this.state.thinking.get(thinkingId);
+                    if (!existingThinking) {
+                        // Use provided sequence or auto-increment
+                        const thinkingSequence = sequence !== undefined ? sequence : this.state.sequenceCounter++;
+                        this.state.thinking.set(thinkingId, {
+                            id: thinkingId,
+                            content: '',
+                            isComplete: false,
+                            sequence: thinkingSequence,
+                        });
+                    }
+                }
                 break;
 
             case 'ThinkingContent':
@@ -179,13 +197,21 @@ export class EventProcessor {
                 break;
 
             case 'ToolCallStart':
-                this.state.toolCalls.set((event as any).tool_call_id, {
-                    id: (event as any).tool_call_id,
-                    name: (event as any).tool_call_name,
-                    args: '',
-                    isComplete: false,
-                    sequence: this.state.sequenceCounter++,
-                });
+                {
+                    const toolCallId = (event as any).tool_call_id;
+                    const existingToolCall = this.state.toolCalls.get(toolCallId);
+                    if (!existingToolCall) {
+                        // Use provided sequence or auto-increment
+                        const toolCallSequence = sequence !== undefined ? sequence : this.state.sequenceCounter++;
+                        this.state.toolCalls.set(toolCallId, {
+                            id: toolCallId,
+                            name: (event as any).tool_call_name,
+                            args: '',
+                            isComplete: false,
+                            sequence: toolCallSequence,
+                        });
+                    }
+                }
                 break;
 
             case 'ToolCallArgs':
@@ -292,6 +318,13 @@ export class EventProcessor {
      */
     getState(): Readonly<RunState> {
         return this.state;
+    }
+
+    /**
+     * Set usage information.
+     */
+    setUsage(usage: UsageInfo): void {
+        this.state.usage = usage;
     }
 
     /**
