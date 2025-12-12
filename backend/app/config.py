@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     # Agent SDK
     anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
     
+    # Agent Configuration
+    agent_system_prompt: str = "You are an expert Python developer"
+    agent_permission_mode: str = "acceptEdits"
+    agent_cwd: str = os.getenv("AGENT_CWD", "/Users/chenjinsheng/github/lite-agent/backend/project")
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

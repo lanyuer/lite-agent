@@ -1,7 +1,7 @@
 """
 Event business logic service.
 """
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -48,7 +48,7 @@ class EventService:
         return event
     
     @staticmethod
-    def get_task_events(db: Session, task_id: str) -> list[Event]:
+    def get_task_events(db: Session, task_id: str) -> List[Event]:
         """Get all events for a task, ordered by sequence."""
         return db.query(Event).filter(
             Event.task_id == task_id

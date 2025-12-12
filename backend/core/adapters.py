@@ -441,52 +441,44 @@ class EventAdapter:
             )
     
     def _track_usage(self, message: Any) -> None:
-        """Track usage from AssistantMessage, avoiding duplicate counting."""
-        # Check if it's an AssistantMessage by type name (more flexible)
+        """
+        Track usage from AssistantMessage if available.
+        
+        Note: Usage information is primarily extracted from ResultMessage.
+        This method handles edge cases where AssistantMessage might contain usage.
+        """
+        # Check if it's an AssistantMessage
         msg_type = getattr(message, 'type', type(message).__name__)
         class_name = type(message).__name__
-        
-        # Check both type attribute and class name
         is_assistant = msg_type == 'AssistantMessage' or class_name == 'AssistantMessage'
         
         if not is_assistant:
             return
         
-        logger.debug(f"📊 Found AssistantMessage, checking for usage...")
-        logger.debug(f"📊 AssistantMessage attributes: {[attr for attr in dir(message) if not attr.startswith('_')]}")
-        
-        # Check for usage attribute
+        # Check for usage attribute (may not exist in all SDK versions)
         if not hasattr(message, 'usage'):
-            logger.debug(f"📊 AssistantMessage has no 'usage' attribute")
             return
         
         usage = getattr(message, 'usage', None)
         if not usage:
-            logger.debug(f"📊 AssistantMessage.usage is None or empty")
             return
         
         # Get message ID
         message_id = getattr(message, 'id', None)
         if not message_id:
-            # Try alternative ID attributes
             message_id = getattr(message, 'message_id', None) or str(uuid.uuid4())
-            logger.debug(f"📊 Using generated message_id: {message_id}")
         
-        # Skip if already processed (same ID = same usage per docs)
+        # Skip if already processed (avoid duplicate counting)
         if message_id in self.processed_message_ids:
-            logger.debug(f"📊 Message {message_id} already processed, skipping")
             return
         
         # Mark as processed and record usage
         self.processed_message_ids.add(message_id)
         
         # Convert usage to dict if needed
-        if isinstance(usage, dict):
-            usage_dict = dict(usage)
-        else:
-            usage_dict = {'raw': str(usage)}
+        usage_dict = dict(usage) if isinstance(usage, dict) else {'raw': str(usage)}
         
-        logger.info(f"📊 Tracking usage for message {message_id}: {usage_dict}")
+        logger.info(f"📊 Tracking usage from AssistantMessage {message_id}: {usage_dict}")
         self.step_usages.append({
             'message_id': message_id,
             'usage': usage_dict,

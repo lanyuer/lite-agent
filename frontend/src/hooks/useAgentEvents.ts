@@ -35,15 +35,14 @@ export function useAgentEvents(options: UseAgentEventsOptions = {}) {
     const sessionIdRef = useRef<string | null>(null);
     const taskIdRef = useRef<string | null>(null);
 
-    const updateState = useCallback(() => {
+    const updateState = useCallback((immediate = false) => {
         if (!processorRef.current) return;
 
         const runState = processorRef.current.getState();
 
         console.log('[useAgentEvents] updateState called, isRunning:', runState.isRunning);
 
-        // Use requestAnimationFrame to ensure smooth updates
-        requestAnimationFrame(() => {
+        const updateFn = () => {
             setState({
                 messages: Array.from(runState.messages.values()),
                 thinking: Array.from(runState.thinking.values()),
@@ -52,7 +51,15 @@ export function useAgentEvents(options: UseAgentEventsOptions = {}) {
                 error: runState.error,
                 usage: runState.usage, // Include usage information
             });
-        });
+        };
+
+        // For critical state updates (like loading), update immediately
+        // For other updates, use requestAnimationFrame for smooth rendering
+        if (immediate) {
+            updateFn();
+        } else {
+            requestAnimationFrame(updateFn);
+        }
     }, []);
 
     // Initialize processor
@@ -62,7 +69,7 @@ export function useAgentEvents(options: UseAgentEventsOptions = {}) {
         processorRef.current = new EventProcessor({
             onRunStarted: () => {
                 console.log('[useAgentEvents] onRunStarted handler called');
-                updateState();
+                updateState(true); // Immediate update for loading state
             },
             onRunFinished: () => {
                 console.log('[useAgentEvents] onRunFinished handler called');
@@ -94,6 +101,16 @@ export function useAgentEvents(options: UseAgentEventsOptions = {}) {
 
     const sendMessage = useCallback(async (message: string) => {
         if (!processorRef.current) return;
+
+        // Set loading state immediately before any async operations
+        // This ensures UI shows loading indicator right away, even before backend responds
+        const tempRunId = `run-${Date.now()}`;
+        processorRef.current.processEvent({
+            type: 'RunStarted',
+            run_id: tempRunId,
+            timestamp: new Date().toISOString(),
+        } as any);
+        updateState(true); // Immediate update for loading state
 
         // Don't reset processor - keep conversation history
         // processorRef.current.reset();
@@ -128,6 +145,13 @@ export function useAgentEvents(options: UseAgentEventsOptions = {}) {
                 }
             } catch (error) {
                 console.error('[useAgentEvents] Error creating task:', error);
+                // Reset loading state on error
+                processorRef.current.processEvent({
+                    type: 'RunFinished',
+                    run_id: tempRunId,
+                    timestamp: new Date().toISOString(),
+                } as any);
+                updateState(true);
                 options.onError?.('Failed to create task');
                 return;
             }
@@ -135,39 +159,52 @@ export function useAgentEvents(options: UseAgentEventsOptions = {}) {
 
         // Now we always have a task_id, so handle it like an existing task
         // Add user message to state immediately for better UX
+        // IMPORTANT: Use max sequence + 1 to ensure correct ordering when appending to historical tasks
+        const maxSequence = processorRef.current.getMaxSequence();
+        const startSequence = maxSequence + 1;
+        
         const userMessageId = `user-${Date.now()}`;
         processorRef.current.processEvent({
             type: 'TextMessageStart',
             message_id: userMessageId,
             role: 'user',
             timestamp: new Date().toISOString(),
-        });
+        }, startSequence);
         processorRef.current.processEvent({
             type: 'TextMessageContent',
             message_id: userMessageId,
             delta: message,
             timestamp: new Date().toISOString(),
-        });
+        }, startSequence + 1);
         processorRef.current.processEvent({
             type: 'TextMessageEnd',
             message_id: userMessageId,
             timestamp: new Date().toISOString(),
-        });
+        }, startSequence + 2);
 
-        // Manually trigger RunStarted to set isRunning = true immediately
+        // Update RunStarted with correct sequence (after user message events)
+        // The RunStarted was already processed at the start to set isRunning=true,
+        // but we need to ensure it has the correct sequence for ordering
+        // Note: RunStarted doesn't appear in message list, so sequence is mainly for internal consistency
         processorRef.current.processEvent({
             type: 'RunStarted',
-            run_id: `run-${Date.now()}`,
+            run_id: tempRunId,
             timestamp: new Date().toISOString(),
-        } as any);
+        } as any, startSequence + 3);
 
-        updateState();
+        // Update state to reflect user message
+        updateState(true);
 
         // Create abort controller
         abortControllerRef.current = new AbortController();
         
         // Record the task_id at the start of this request to ensure events belong to this task
         const requestTaskId = taskIdRef.current;
+        
+        // Track the next sequence for streaming events
+        // This ensures streaming events have correct sequence relative to user message
+        // Start from startSequence + 4 (after user message: 0,1,2 and RunStarted: 3)
+        let nextStreamSequence = startSequence + 4;
 
         try {
             // Include session_id and task_id in request body
@@ -242,7 +279,25 @@ export function useAgentEvents(options: UseAgentEventsOptions = {}) {
                                 }
                             }
                             
-                            processEvent(event);
+                            // Process event with correct sequence for streaming events
+                            // Backend events don't include sequence in the event itself,
+                            // so we need to track it on the frontend
+                            // Skip RunStarted if we already manually added it (to avoid duplicate)
+                            if (event.type === 'RunStarted') {
+                                // Backend RunStarted - we already added one manually, so skip or update
+                                // Just process it without sequence to update state if needed
+                                processorRef.current.processEvent(event);
+                            } else if (event.type === 'TextMessageStart' || 
+                                       event.type === 'ThinkingStart' || 
+                                       event.type === 'ToolCallStart') {
+                                // Start events need sequence for proper ordering
+                                processorRef.current.processEvent(event, nextStreamSequence);
+                                // Increment sequence for next Start event
+                                nextStreamSequence++;
+                            } else {
+                                // Content/End events don't need sequence, they update existing items
+                                processorRef.current.processEvent(event);
+                            }
                         } catch (e) {
                             console.error('Error parsing event:', e);
                         }

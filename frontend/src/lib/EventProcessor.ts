@@ -139,6 +139,9 @@ export class EventProcessor {
                             isComplete: false,
                             sequence: msgSequence,
                         });
+                    } else if (sequence !== undefined && sequence !== existingMsg.sequence) {
+                        // Update sequence if provided and different (for correcting optimistic updates)
+                        existingMsg.sequence = sequence;
                     }
                 }
                 break;
@@ -170,10 +173,10 @@ export class EventProcessor {
                         const thinkingSequence = sequence !== undefined ? sequence : this.state.sequenceCounter++;
                         this.state.thinking.set(thinkingId, {
                             id: thinkingId,
-                            content: '',
-                            isComplete: false,
+                    content: '',
+                    isComplete: false,
                             sequence: thinkingSequence,
-                        });
+                });
                     }
                 }
                 break;
@@ -205,11 +208,11 @@ export class EventProcessor {
                         const toolCallSequence = sequence !== undefined ? sequence : this.state.sequenceCounter++;
                         this.state.toolCalls.set(toolCallId, {
                             id: toolCallId,
-                            name: (event as any).tool_call_name,
-                            args: '',
-                            isComplete: false,
+                    name: (event as any).tool_call_name,
+                    args: '',
+                    isComplete: false,
                             sequence: toolCallSequence,
-                        });
+                });
                     }
                 }
                 break;
@@ -318,6 +321,36 @@ export class EventProcessor {
      */
     getState(): Readonly<RunState> {
         return this.state;
+    }
+
+    /**
+     * Get the maximum sequence number from all messages, thinking, and tool calls.
+     */
+    getMaxSequence(): number {
+        let maxSequence = -1;
+        
+        // Check messages
+        for (const msg of this.state.messages.values()) {
+            if (msg.sequence > maxSequence) {
+                maxSequence = msg.sequence;
+            }
+        }
+        
+        // Check thinking
+        for (const thinking of this.state.thinking.values()) {
+            if (thinking.sequence > maxSequence) {
+                maxSequence = thinking.sequence;
+            }
+        }
+        
+        // Check tool calls
+        for (const toolCall of this.state.toolCalls.values()) {
+            if (toolCall.sequence > maxSequence) {
+                maxSequence = toolCall.sequence;
+            }
+        }
+        
+        return maxSequence;
     }
 
     /**

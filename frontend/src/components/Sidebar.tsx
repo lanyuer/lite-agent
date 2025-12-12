@@ -80,9 +80,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                     {tasks.length === 0 ? (
                         <div className="nav-item" style={{ color: '#999', fontStyle: 'italic' }}>
-                            <MessageSquare size={18} />
+                        <MessageSquare size={18} />
                             <span className="text-truncate">No tasks yet</span>
-                        </div>
+                    </div>
                     ) : (
                         tasks.map((task) => (
                             <div
@@ -92,7 +92,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                 onMouseEnter={() => setHoveredTaskId(task.id)}
                                 onMouseLeave={() => setHoveredTaskId(null)}
                             >
-                                <MessageSquare size={18} />
+                        <MessageSquare size={18} />
                                 <span className="text-truncate" title={task.title}>
                                     {task.title}
                                 </span>
@@ -110,7 +110,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                         <Trash2 size={14} />
                                     </button>
                                 )}
-                            </div>
+                    </div>
                         ))
                     )}
                 </div>
