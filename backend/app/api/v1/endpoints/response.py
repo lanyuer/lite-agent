@@ -15,7 +15,7 @@ from app.services.session_service import SessionService
 from app.services.agent_service import AgentService
 from app.services.event_service import EventService
 from app.utils.event_helpers import EventHelpers
-from core.events import CustomEvent, RunError
+from core.events import CustomEvent, RunError, ToolCallResult
 
 router = APIRouter()
 
@@ -154,9 +154,33 @@ async def response(
                         
                         # Update task with session_id
                         if task:
-                            SessionService.update_task_session_id(
+                            success, existing_task = SessionService.update_task_session_id(
                                 db, task, new_session_id
                             )
+                            
+                            # If conflict detected, switch to existing task
+                            if not success and existing_task:
+                                logger.info(
+                                    f"🔄 Switching from task {task.id} to existing task {existing_task.id} "
+                                    f"(same session_id: {new_session_id})"
+                                )
+                                
+                                # Note: User message may have been saved to old task
+                                # This is acceptable since both tasks correspond to the same session
+                                if user_message_saved:
+                                    logger.info(
+                                        f"ℹ️ User message was saved to old task {task.id}, "
+                                        f"but continuing conversation in task {existing_task.id}"
+                                    )
+                                
+                                # Update event sequence to continue from existing task
+                                max_sequence = EventService.get_max_sequence(db, existing_task.id)
+                                event_sequence = max_sequence + 1
+                                logger.info(
+                                    f"📊 Switched to task {existing_task.id}, "
+                                    f"max sequence: {max_sequence}, starting from {event_sequence}"
+                                )
+                                task = existing_task
                         elif new_session_id:
                             # Try to find existing task by session_id
                             from app.models.task import Task
@@ -165,6 +189,13 @@ async def response(
                             ).first()
                             if task:
                                 logger.info(f"🔍 Found existing task by session_id: {task.id}")
+                                # Update event sequence
+                                max_sequence = EventService.get_max_sequence(db, task.id)
+                                event_sequence = max_sequence + 1
+                                logger.info(
+                                    f"📊 Task {task.id} max sequence: {max_sequence}, "
+                                    f"starting from {event_sequence}"
+                                )
                 
                 # Collect assistant content
                 assistant_message_id, assistant_content_parts = (
@@ -172,6 +203,30 @@ async def response(
                         event, assistant_message_id, assistant_content_parts
                     )
                 )
+                
+                # Generate UI components for tool results (e.g., images)
+                if event.type == 'ToolCallResult':
+                    tool_result = event  # type: ToolCallResult
+                    ui_component = EventHelpers.generate_ui_component_for_tool_result(
+                        tool_result, assistant_message_id
+                    )
+                    
+                    if ui_component:
+                        logger.info(
+                            f"🎨 Generated UI component {ui_component.component_id} "
+                            f"for tool result {tool_result.tool_call_id}"
+                        )
+                        
+                        # Save UI component event
+                        if task:
+                            event_dict = EventHelpers.prepare_event_data(ui_component)
+                            EventService.save_event(
+                                db, task.id, 'UIComponent', event_dict, event_sequence
+                            )
+                            event_sequence += 1
+                        
+                        # Yield UI component event to frontend
+                        yield f"data: {ui_component.model_dump_json()}\n\n"
                 
                 # Extract usage info
                 if event.type == 'RunFinished':

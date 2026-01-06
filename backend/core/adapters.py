@@ -29,6 +29,7 @@ from core.events import (
     ThinkingEnd,
     CustomEvent,
 )
+from app.utils.event_helpers import EventHelpers
 
 
 # Constants
@@ -221,11 +222,25 @@ class ToolMessageConverter(MessageConverter):
         content = getattr(message, 'content', getattr(message, 'result', ''))
         is_error = bool(getattr(message, 'is_error', False) or False)
         
+        # Detect content type and optimize large content
+        metadata = None
+        optimized_content = content
+        if not is_error and content:
+            try:
+                metadata = EventHelpers.detect_content_type(content)
+                logger.debug(f"🔍 Detected content type for tool call {tool_call_id}: {metadata.get('content_type')}")
+                
+                # Optimize large content (save to file if needed)
+                optimized_content, metadata = EventHelpers.optimize_large_content(content, metadata)
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to detect/optimize content type: {e}")
+        
         yield ToolCallResult(
             message_id=str(uuid.uuid4()),
             tool_call_id=tool_call_id,
-            content=str(content),
-            is_error=is_error
+            content=optimized_content,  # Use optimized content (may be file URL)
+            is_error=is_error,
+            metadata=metadata
         )
 
 
@@ -312,11 +327,25 @@ class ContentBlockConverter:
         content = getattr(block, 'content', '')
         is_error = bool(getattr(block, 'is_error', False) or False)
         
+        # Detect content type and optimize large content
+        metadata = None
+        optimized_content = content
+        if not is_error and content:
+            try:
+                metadata = EventHelpers.detect_content_type(content)
+                logger.debug(f"🔍 Detected content type for tool result {tool_call_id}: {metadata.get('content_type')}")
+                
+                # Optimize large content (save to file if needed)
+                optimized_content, metadata = EventHelpers.optimize_large_content(content, metadata)
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to detect/optimize content type: {e}")
+        
         yield ToolCallResult(
             message_id=str(uuid.uuid4()),
             tool_call_id=tool_call_id,
-            content=str(content),
-            is_error=is_error
+            content=optimized_content,  # Use optimized content (may be file URL)
+            is_error=is_error,
+            metadata=metadata
         )
     
     async def _stream_text(self, text: str, event_factory: Callable[[str], AgentEvent]) -> AsyncGenerator[AgentEvent, None]:

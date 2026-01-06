@@ -1,0 +1,320 @@
+/* Generative UI Component Styles */
+
+.genui-wrapper {
+    margin: 8px 0;
+}
+
+/* Button Component */
+.genui-button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.genui-button-primary {
+    background-color: #0066cc;
+    color: white;
+}
+
+.genui-button-primary:hover:not(:disabled) {
+    background-color: #0052a3;
+}
+
+.genui-button-secondary {
+    background-color: #f0f0f0;
+    color: #333;
+}
+
+.genui-button-secondary:hover:not(:disabled) {
+    background-color: #e0e0e0;
+}
+
+.genui-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Image Component */
+.genui-image {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    display: block;
+}
+
+/* Card Component */
+.genui-card {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 16px;
+    background: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    transition: box-shadow 0.2s;
+}
+
+.genui-card:hover {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.genui-card-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: #333;
+}
+
+.genui-card-content {
+    color: #666;
+    line-height: 1.6;
+}
+
+/* Form Component */
+.genui-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.genui-form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.genui-form-field label {
+    font-size: 14px;
+    font-weight: 500;
+    color: #333;
+}
+
+.genui-form-field input,
+.genui-form-field textarea,
+.genui-form-field select {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: inherit;
+}
+
+.genui-form-field input:focus,
+.genui-form-field textarea:focus,
+.genui-form-field select:focus {
+    outline: none;
+    border-color: #0066cc;
+    box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.1);
+}
+
+/* Text Component */
+.genui-text {
+    margin: 0;
+    line-height: 1.6;
+}
+
+.genui-text-heading {
+    font-size: 20px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 8px;
+}
+
+.genui-text-subheading {
+    font-size: 16px;
+    font-weight: 500;
+    color: #444;
+    margin-bottom: 6px;
+}
+
+.genui-text-body {
+    font-size: 14px;
+    color: #666;
+}
+
+/* Container Component */
+.genui-container {
+    display: flex;
+    gap: 12px;
+}
+
+.genui-container-vertical {
+    flex-direction: column;
+}
+
+.genui-container-horizontal {
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+/* Video Component */
+.genui-video {
+    width: 100%;
+    max-width: 800px;
+    border-radius: 4px;
+    background: #000;
+}
+
+/* Audio Component */
+.genui-audio {
+    width: 100%;
+    max-width: 500px;
+}
+
+/* Unknown Component */
+.genui-unknown {
+    padding: 12px;
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.genui-unknown-type {
+    font-weight: 600;
+    color: #666;
+    margin-bottom: 8px;
+}
+
+.genui-unknown pre {
+    margin: 0;
+    font-size: 11px;
+    overflow-x: auto;
+}
+
+/* File List Component */
+.genui-file-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px;
+}
+
+.genui-file-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: white;
+}
+
+.genui-file-item:hover {
+    background: #f5f5f5;
+    border-color: #0066cc;
+}
+
+.genui-file-item-directory {
+    background: #f9f9f9;
+}
+
+.genui-file-item-image {
+    border-color: #0066cc;
+}
+
+.genui-file-item-preview {
+    width: 60px;
+    height: 60px;
+    flex-shrink: 0;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #f0f0f0;
+}
+
+.genui-file-item-thumbnail {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.genui-file-item-icon {
+    width: 60px;
+    height: 60px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    background: #f0f0f0;
+    border-radius: 4px;
+}
+
+.genui-file-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.genui-file-item-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #333;
+    margin-bottom: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.genui-file-item-size {
+    font-size: 12px;
+    color: #666;
+}
+
+/* Image Gallery Component */
+.genui-image-gallery {
+    display: grid;
+    gap: 12px;
+    padding: 8px;
+}
+
+.genui-image-gallery-item {
+    position: relative;
+    aspect-ratio: 1;
+    overflow: hidden;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.2s;
+    background: #f0f0f0;
+}
+
+.genui-image-gallery-item:hover {
+    transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.genui-image-gallery-thumbnail {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.genui-image-gallery-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    cursor: pointer;
+    padding: 20px;
+}
+
+.genui-image-gallery-preview {
+    max-width: 90%;
+    max-height: 90%;
+    object-fit: contain;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+

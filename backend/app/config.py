@@ -23,6 +23,13 @@ class Settings(BaseSettings):
     agent_system_prompt: str = "You are an expert Python developer"
     agent_permission_mode: str = "acceptEdits"
     agent_cwd: str = os.getenv("AGENT_CWD", "/Users/chenjinsheng/github/lite-agent/backend/project")
+    agent_allowed_tools: list[str] = [
+    "Read", "Write", "Bash",
+    "Glob", "Grep", "LS", 
+    "ExitPlanMode", 
+    "Edit", "MultiEdit", 
+    "NotebookRead", "NotebookEdit",
+    "WebFetch", "TodoWrite", "WebSearch"]
     
     class Config:
         env_file = ".env"

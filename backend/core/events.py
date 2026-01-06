@@ -122,6 +122,7 @@ class ToolCallResult(BaseEvent):
     content: Any
     role: Literal["tool"] = "tool"
     is_error: bool = False
+    metadata: Optional[Dict[str, Any]] = None  # Content type metadata for dynamic UI rendering
 
 
 # ============================================================================
@@ -165,6 +166,52 @@ class StateDelta(BaseEvent):
 
 
 # ============================================================================
+# Generative UI Events (AG-UI Protocol)
+# ============================================================================
+
+class UIComponent(BaseEvent):
+    """
+    Generative UI component event.
+    Allows agents to dynamically generate UI components.
+    Based on AG-UI Generative UI specification.
+    """
+    type: Literal["UIComponent"] = "UIComponent"
+    component_id: str
+    component_type: str  # e.g., 'button', 'image', 'form', 'card', 'chart', etc.
+    props: Dict[str, Any]  # Component properties
+    children: Optional[list[Dict[str, Any]]] = None  # Nested components
+    constraints: Optional[Dict[str, Any]] = None  # Validation constraints
+    parent_component_id: Optional[str] = None  # For nested components
+    message_id: Optional[str] = None  # Associated message
+
+
+class UIUpdate(BaseEvent):
+    """Update an existing UI component."""
+    type: Literal["UIUpdate"] = "UIUpdate"
+    component_id: str
+    props: Dict[str, Any]  # Updated properties
+    merge: bool = True  # Whether to merge with existing props
+
+
+class UIRemove(BaseEvent):
+    """Remove a UI component."""
+    type: Literal["UIRemove"] = "UIRemove"
+    component_id: str
+
+
+class UIInteraction(BaseEvent):
+    """
+    User interaction with a UI component.
+    This is sent from frontend to backend when user interacts with generated UI.
+    """
+    type: Literal["UIInteraction"] = "UIInteraction"
+    component_id: str
+    interaction_type: str  # e.g., 'click', 'submit', 'change', 'focus', etc.
+    data: Dict[str, Any]  # Interaction data
+    timestamp: datetime = Field(default_factory=datetime.now)
+
+
+# ============================================================================
 # Custom/Extension Events
 # ============================================================================
 
@@ -185,5 +232,6 @@ AgentEvent = (
     ToolCallStart | ToolCallArgs | ToolCallEnd | ToolCallResult |
     ThinkingStart | ThinkingContent | ThinkingEnd |
     StateSnapshot | StateDelta |
+    UIComponent | UIUpdate | UIRemove | UIInteraction |
     CustomEvent
 )

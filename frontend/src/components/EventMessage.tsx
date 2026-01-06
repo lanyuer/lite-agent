@@ -1,15 +1,19 @@
 import React, { useState } from 'react';
 import { Terminal, CheckCircle, XCircle, ChevronDown, ChevronRight, Lightbulb, Loader2 } from 'lucide-react';
-import type { MessageState, ThinkingState, ToolCallState } from '../lib/EventProcessor';
+import type { MessageState, ThinkingState, ToolCallState, UIComponentState } from '../lib/EventProcessor';
 import { StreamingMarkdown } from './StreamingMarkdown';
 import { StreamingText } from './StreamingText';
 import { CostDisplay } from './CostDisplay';
+import { ToolResultRenderer } from './ToolResultRenderer';
+import { GenerativeUI } from './GenerativeUI';
+import type { UIComponent } from '../types/events';
 import './EventMessage.css';
 
 interface EventMessageProps {
     message?: MessageState;
     thinking?: ThinkingState;
     toolCall?: ToolCallState;
+    uiComponents?: UIComponentState[]; // Generative UI components associated with this message
     hideHeader?: boolean;
     usage?: any; // Usage information for cost display
     cumulativeUsage?: {
@@ -18,16 +22,19 @@ interface EventMessageProps {
         total_output_tokens?: number;
     };
     showCumulative?: boolean; // Whether to show cumulative usage
+    onUIInteraction?: (componentId: string, interactionType: string, data: any) => void;
 }
 
 export const EventMessage: React.FC<EventMessageProps> = ({
     message,
     thinking,
     toolCall,
+    uiComponents = [],
     hideHeader = false,
     usage,
     cumulativeUsage,
-    showCumulative = false
+    showCumulative = false,
+    onUIInteraction
 }) => {
     const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
     const [isToolExpanded, setIsToolExpanded] = useState(false);
@@ -70,11 +77,13 @@ export const EventMessage: React.FC<EventMessageProps> = ({
                                 {toolCall.result && (
                                     <div className="tool-section">
                                         <div className="tool-section-title">Result</div>
-                                        <pre className="tool-section-content">
-                                            {typeof toolCall.result === 'string'
-                                                ? toolCall.result
-                                                : JSON.stringify(toolCall.result, null, 2)}
-                                        </pre>
+                                        <div className="tool-section-content">
+                                            <ToolResultRenderer
+                                                result={toolCall.result}
+                                                metadata={toolCall.metadata}
+                                                isError={toolCall.isError}
+                                            />
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -163,6 +172,33 @@ export const EventMessage: React.FC<EventMessageProps> = ({
                             </div>
                         )}
                     </div>
+
+                    {/* Generative UI Components */}
+                    {uiComponents && uiComponents.length > 0 && (
+                        <div className="generative-ui-section">
+                            {uiComponents.map((uiComp) => {
+                                // Convert UIComponentState to UIComponent format
+                                const component: UIComponent = {
+                                    type: 'UIComponent',
+                                    timestamp: new Date().toISOString(),
+                                    component_id: uiComp.component_id,
+                                    component_type: uiComp.component_type,
+                                    props: uiComp.props,
+                                    children: uiComp.children,
+                                    constraints: uiComp.constraints,
+                                    parent_component_id: uiComp.parent_component_id,
+                                    message_id: uiComp.message_id,
+                                };
+                                return (
+                                    <GenerativeUI
+                                        key={uiComp.component_id}
+                                        component={component}
+                                        onInteraction={onUIInteraction}
+                                    />
+                                );
+                            })}
+                        </div>
+                    )}
                     
                     {/* Show cost info when message is complete */}
                     {message.isComplete && (usage || (showCumulative && cumulativeUsage)) && (

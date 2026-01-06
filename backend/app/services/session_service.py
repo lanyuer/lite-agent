@@ -76,9 +76,12 @@ class SessionService:
         db: Session,
         task: Task,
         new_session_id: str
-    ) -> bool:
+    ) -> tuple[bool, Optional[Task]]:
         """
         Update task with session_id, checking for conflicts.
+        
+        If session_id is already used by another task, returns the existing task
+        so caller can switch to it instead.
         
         Args:
             db: Database session
@@ -86,7 +89,10 @@ class SessionService:
             new_session_id: New session ID to set
             
         Returns:
-            True if updated, False if conflict detected
+            Tuple of (success: bool, existing_task: Optional[Task])
+            - If success=True: session_id was updated successfully, existing_task=None
+            - If success=False and existing_task is not None: conflict detected, use existing_task
+            - If success=False and existing_task is None: other error (e.g., session_id mismatch)
         """
         if not task.session_id:
             # Check if session_id is already used by another task
@@ -96,25 +102,27 @@ class SessionService:
             ).first()
             
             if existing_task:
-                logger.error(
-                    f"❌ ERROR: Session {new_session_id} already used by task {existing_task.id}!"
+                logger.warning(
+                    f"⚠️ Session {new_session_id} already used by task {existing_task.id}"
                 )
-                logger.error(f"❌ Current task: {task.id}, Existing task: {existing_task.id}")
-                logger.error("❌ This indicates a logic error: new session_id conflicts with existing task")
-                return False
+                logger.info(
+                    f"ℹ️ Current task: {task.id}, Existing task: {existing_task.id} - "
+                    f"switching to existing task (same session_id should use same task)"
+                )
+                return False, existing_task
             
             logger.info(f"💾 Saving session_id to task {task.id}")
             task.session_id = new_session_id
             db.commit()
             db.refresh(task)
             logger.info(f"✅ Task {task.id} now has session_id: {task.session_id}")
-            return True
+            return True, None
         elif task.session_id != new_session_id:
             logger.warning(
                 f"⚠️ Task {task.id} session_id changed from {task.session_id} to {new_session_id}"
             )
             logger.warning("⚠️ This might indicate session_id extraction error or SDK behavior change")
-            return False
+            return False, None
         else:
             logger.info(f"ℹ️ Task {task.id} already has session_id: {task.session_id} (matches extracted)")
-            return True
+            return True, None

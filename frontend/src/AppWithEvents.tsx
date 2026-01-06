@@ -18,7 +18,7 @@ function AppWithEvents() {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-    const { state, sendMessage, stopGeneration, loadTask, setTaskId, resetSession } = useAgentEvents({
+    const { state, sendMessage, stopGeneration, loadTask, setTaskId, resetSession, sendUIInteraction } = useAgentEvents({
         onError: (error) => {
             console.error('Agent error:', error);
             alert(`Error: ${error}`);
@@ -271,8 +271,8 @@ function AppWithEvents() {
                             {(() => {
                                 // Collect all events and sort by sequence
                                 const allEvents: Array<{
-                                    type: 'message' | 'thinking' | 'toolCall';
-                                    data: MessageState | ThinkingState | ToolCallState;
+                                    type: 'message' | 'thinking' | 'toolCall' | 'uiComponent';
+                                    data: MessageState | ThinkingState | ToolCallState | import('../lib/EventProcessor').UIComponentState;
                                     sequence: number;
                                 }> = [];
 
@@ -285,6 +285,9 @@ function AppWithEvents() {
                                 state.toolCalls.forEach(tool => {
                                     allEvents.push({ type: 'toolCall', data: tool, sequence: tool.sequence });
                                 });
+                                state.uiComponents.forEach(uiComp => {
+                                    allEvents.push({ type: 'uiComponent', data: uiComp, sequence: uiComp.sequence });
+                                });
 
                                 // Sort by sequence
                                 allEvents.sort((a, b) => a.sequence - b.sequence);
@@ -295,6 +298,7 @@ function AppWithEvents() {
                                     message?: MessageState;
                                     thinking?: ThinkingState;
                                     toolCall?: ToolCallState;
+                                    uiComponents?: import('../lib/EventProcessor').UIComponentState[];
                                 }> = [];
 
                                 for (let i = 0; i < allEvents.length; i++) {
@@ -434,10 +438,12 @@ function AppWithEvents() {
                                             message={item.message}
                                             thinking={item.thinking}
                                             toolCall={item.toolCall}
+                                            uiComponents={item.uiComponents}
                                             hideHeader={hideHeader}
                                             usage={isLastAssistantMessage ? state.usage : undefined}
                                             cumulativeUsage={cumulativeUsage}
                                             showCumulative={isLastAssistantMessage}
+                                            onUIInteraction={sendUIInteraction}
                                         />
                                     );
                                 });

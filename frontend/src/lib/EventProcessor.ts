@@ -32,6 +32,27 @@ export interface ToolCallState {
     isComplete: boolean;
     isError?: boolean;
     sequence: number; // For ordering
+    metadata?: {
+        content_type?: string; // 'image' | 'video' | 'audio' | 'url' | 'json' | 'text' | 'file' | 'list' | 'unknown'
+        media_type?: string; // MIME type (e.g., 'image/jpeg', 'image/png')
+        url?: string; // URL for remote resources
+        data?: any; // Additional data (base64, JSON, etc.)
+        encoding?: string; // 'base64' for base64-encoded content
+        file_path?: string; // File path for local files
+        source_key?: string; // Key in JSON that contains the content
+        items?: any[]; // For list types
+    };
+}
+
+export interface UIComponentState {
+    component_id: string;
+    component_type: string;
+    props: any;
+    children?: any[];
+    constraints?: any;
+    parent_component_id?: string;
+    message_id?: string;
+    sequence: number;
 }
 
 export interface UsageInfo {
@@ -48,6 +69,7 @@ export interface RunState {
     messages: Map<string, MessageState>;
     thinking: Map<string, ThinkingState>;
     toolCalls: Map<string, ToolCallState>;
+    uiComponents: Map<string, UIComponentState>; // Generative UI components
     isRunning: boolean;
     error?: string;
     sequenceCounter: number; // Global sequence counter
@@ -65,6 +87,7 @@ export class EventProcessor {
             messages: new Map(),
             thinking: new Map(),
             toolCalls: new Map(),
+            uiComponents: new Map(),
             isRunning: false,
             sequenceCounter: 0,
         };
@@ -241,7 +264,51 @@ export class EventProcessor {
                     if (toolCall) {
                         toolCall.result = (event as any).content;
                         toolCall.isError = (event as any).is_error;
+                        // Store metadata if available
+                        if ((event as any).metadata) {
+                            toolCall.metadata = (event as any).metadata;
+                        }
                     }
+                }
+                break;
+
+            case 'UIComponent':
+                {
+                    const componentId = (event as any).component_id;
+                    const existingComponent = this.state.uiComponents.get(componentId);
+                    if (!existingComponent) {
+                        const componentSequence = sequence !== undefined ? sequence : this.state.sequenceCounter++;
+                        this.state.uiComponents.set(componentId, {
+                            component_id: componentId,
+                            component_type: (event as any).component_type,
+                            props: (event as any).props || {},
+                            children: (event as any).children,
+                            constraints: (event as any).constraints,
+                            parent_component_id: (event as any).parent_component_id,
+                            message_id: (event as any).message_id,
+                            sequence: componentSequence,
+                        });
+                    }
+                }
+                break;
+
+            case 'UIUpdate':
+                {
+                    const componentId = (event as any).component_id;
+                    const component = this.state.uiComponents.get(componentId);
+                    if (component) {
+                        const merge = (event as any).merge !== false;
+                        component.props = merge
+                            ? { ...component.props, ...(event as any).props }
+                            : (event as any).props;
+                    }
+                }
+                break;
+
+            case 'UIRemove':
+                {
+                    const componentId = (event as any).component_id;
+                    this.state.uiComponents.delete(componentId);
                 }
                 break;
         }
@@ -311,6 +378,15 @@ export class EventProcessor {
             case 'StateDelta':
                 if ('delta' in event) this.handlers.onStateDelta?.(event);
                 break;
+            case 'UIComponent':
+                if ('component_id' in event) this.handlers.onUIComponent?.(event);
+                break;
+            case 'UIUpdate':
+                if ('component_id' in event) this.handlers.onUIUpdate?.(event);
+                break;
+            case 'UIRemove':
+                if ('component_id' in event) this.handlers.onUIRemove?.(event);
+                break;
             default:
                 this.handlers.onCustomEvent?.(event as AgentCustomEvent);
         }
@@ -369,6 +445,7 @@ export class EventProcessor {
             messages: new Map(),
             thinking: new Map(),
             toolCalls: new Map(),
+            uiComponents: new Map(),
             isRunning: false,
             sequenceCounter: 0,
             usage: undefined,

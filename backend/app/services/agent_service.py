@@ -10,6 +10,7 @@ from app.config import settings
 from core.adapters import EventAdapter
 from core.events import AgentEvent
 
+from app.tools.weather import custom_server
 
 class AgentService:
     """Service for agent-related operations."""
@@ -19,7 +20,8 @@ class AgentService:
         session_id: Optional[str] = None,
         system_prompt: Optional[str] = None,
         permission_mode: Optional[str] = None,
-        cwd: Optional[str] = None
+        cwd: Optional[str] = None,
+        allowed_tools: Optional[list[str]] = None
     ) -> ClaudeAgentOptions:
         """
         Create Claude agent options.
@@ -33,14 +35,21 @@ class AgentService:
         Returns:
             ClaudeAgentOptions instance
         """
+        allowed_tools = allowed_tools or settings.agent_allowed_tools
+        allowed_tools.append("mcp__my-custom-tools__get_weather")
         options_kwargs: Dict[str, Any] = {
             "system_prompt": system_prompt or settings.agent_system_prompt,
             "permission_mode": permission_mode or settings.agent_permission_mode,
-            "cwd": cwd or settings.agent_cwd
+            "cwd": cwd or settings.agent_cwd,
+            "mcp_servers": {"my-custom-tools": custom_server},
+            "allowed_tools": allowed_tools or settings.agent_allowed_tools
         }
+        
+        logger.info(f"🔧 Creating agent options: {options_kwargs}")
         
         if session_id:
             options_kwargs["resume"] = session_id
+        
         
         return ClaudeAgentOptions(**options_kwargs)
     

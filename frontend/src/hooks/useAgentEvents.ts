@@ -17,6 +17,7 @@ export interface AgentState {
     messages: MessageState[];
     thinking: ThinkingState[];
     toolCalls: ToolCallState[];
+    uiComponents: Array<import('../lib/EventProcessor').UIComponentState>;
     isRunning: boolean;
     error?: string;
     usage?: UsageInfo; // Token usage and cost information
@@ -27,6 +28,7 @@ export function useAgentEvents(options: UseAgentEventsOptions = {}) {
         messages: [],
         thinking: [],
         toolCalls: [],
+        uiComponents: [],
         isRunning: false,
     });
 
@@ -47,6 +49,7 @@ export function useAgentEvents(options: UseAgentEventsOptions = {}) {
                 messages: Array.from(runState.messages.values()),
                 thinking: Array.from(runState.thinking.values()),
                 toolCalls: Array.from(runState.toolCalls.values()),
+                uiComponents: Array.from(runState.uiComponents.values()),
                 isRunning: runState.isRunning,
                 error: runState.error,
                 usage: runState.usage, // Include usage information
@@ -91,6 +94,9 @@ export function useAgentEvents(options: UseAgentEventsOptions = {}) {
             onToolCallArgs: () => updateState(),
             onToolCallEnd: () => updateState(),
             onToolCallResult: () => updateState(),
+            onUIComponent: () => updateState(),
+            onUIUpdate: () => updateState(),
+            onUIRemove: () => updateState(),
         });
     }, [updateState, options]);
 
