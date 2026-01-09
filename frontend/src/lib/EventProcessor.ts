@@ -79,6 +79,8 @@ export interface RunState {
 export class EventProcessor {
     private handlers: EventHandlers;
     private state: RunState;
+    private batchMode: boolean = false;
+    private pendingUpdates: Array<() => void> = [];
 
     constructor(handlers: EventHandlers = {}) {
         this.handlers = handlers;
@@ -94,6 +96,25 @@ export class EventProcessor {
     }
 
     /**
+     * Enable batch mode to queue handler calls instead of executing them immediately.
+     * Used when loading many events (e.g., task history) to reduce re-renders.
+     */
+    enableBatchMode(): void {
+        this.batchMode = true;
+        this.pendingUpdates = [];
+    }
+
+    /**
+     * Disable batch mode and flush all queued updates.
+     */
+    disableBatchMode(): void {
+        this.batchMode = false;
+        // Execute all pending updates
+        this.pendingUpdates.forEach(update => update());
+        this.pendingUpdates = [];
+    }
+
+    /**
      * Process a single event and update state.
      * @param event The event to process
      * @param sequence Optional sequence number (for loading from database). If not provided, uses sequenceCounter++.
@@ -103,43 +124,43 @@ export class EventProcessor {
         // This ensures handlers see the updated state
         switch (event.type) {
             case 'RunStarted':
-                console.log('[EventProcessor] RunStarted - setting isRunning = true');
+                // console.log('[EventProcessor] RunStarted - setting isRunning = true');
                 this.state.run_id = (event as any).run_id;
                 this.state.isRunning = true;
                 this.state.error = undefined;
                 break;
 
             case 'RunFinished':
-                console.log('[EventProcessor] RunFinished - setting isRunning = false');
+                // console.log('[EventProcessor] RunFinished - setting isRunning = false');
                 this.state.isRunning = false;
                 // Store usage information if available
                 const runFinishedEvent = event as any;
-                console.log('[EventProcessor] RunFinished event:', runFinishedEvent);
-                console.log('[EventProcessor] total_cost_usd:', runFinishedEvent.total_cost_usd);
-                console.log('[EventProcessor] usage:', runFinishedEvent.usage);
-                
+                // console.log('[EventProcessor] RunFinished event:', runFinishedEvent);
+                // console.log('[EventProcessor] total_cost_usd:', runFinishedEvent.total_cost_usd);
+                // console.log('[EventProcessor] usage:', runFinishedEvent.usage);
+
                 // Extract usage and cost (using snake_case)
                 const totalCost = runFinishedEvent.total_cost_usd;
                 const usageData = runFinishedEvent.usage || {};
-                
-                console.log('[EventProcessor] Extracted totalCost:', totalCost);
-                console.log('[EventProcessor] Extracted usageData:', usageData);
-                
+
+                // console.log('[EventProcessor] Extracted totalCost:', totalCost);
+                // console.log('[EventProcessor] Extracted usageData:', usageData);
+
                 if (usageData && Object.keys(usageData).length > 0) {
                     // Merge usage data with total_cost_usd
                     this.state.usage = {
                         ...usageData,
                         total_cost_usd: totalCost !== undefined && totalCost !== null ? totalCost : (usageData.total_cost_usd || 0),
                     };
-                    console.log('[EventProcessor] Stored usage:', this.state.usage);
+                    // console.log('[EventProcessor] Stored usage:', this.state.usage);
                 } else if (totalCost !== undefined && totalCost !== null) {
                     // If we have cost but no usage object, create one
                     this.state.usage = {
                         total_cost_usd: totalCost,
                     };
-                    console.log('[EventProcessor] Stored usage (cost only):', this.state.usage);
+                    // console.log('[EventProcessor] Stored usage (cost only):', this.state.usage);
                 } else {
-                    console.log('[EventProcessor] No usage information in RunFinished event');
+                    // console.log('[EventProcessor] No usage information in RunFinished event');
                 }
                 break;
 
@@ -326,69 +347,78 @@ export class EventProcessor {
      * Call the appropriate handler for an event.
      */
     private callHandler(event: AgentEvent): void {
-        switch (event.type) {
-            case 'RunStarted':
-                if ('run_id' in event) this.handlers.onRunStarted?.(event);
-                break;
-            case 'RunFinished':
-                if ('run_id' in event) this.handlers.onRunFinished?.(event);
-                break;
-            case 'RunError':
-                if ('run_id' in event && 'error' in event) this.handlers.onRunError?.(event);
-                break;
-            case 'StepStarted':
-                if ('step_id' in event) this.handlers.onStepStarted?.(event);
-                break;
-            case 'StepFinished':
-                if ('step_id' in event) this.handlers.onStepFinished?.(event);
-                break;
-            case 'TextMessageStart':
-                if ('message_id' in event) this.handlers.onTextMessageStart?.(event);
-                break;
-            case 'TextMessageContent':
-                if ('message_id' in event && 'delta' in event) this.handlers.onTextMessageContent?.(event);
-                break;
-            case 'TextMessageEnd':
-                if ('message_id' in event) this.handlers.onTextMessageEnd?.(event);
-                break;
-            case 'ToolCallStart':
-                if ('tool_call_id' in event) this.handlers.onToolCallStart?.(event);
-                break;
-            case 'ToolCallArgs':
-                if ('tool_call_id' in event && 'delta' in event) this.handlers.onToolCallArgs?.(event);
-                break;
-            case 'ToolCallEnd':
-                if ('tool_call_id' in event) this.handlers.onToolCallEnd?.(event);
-                break;
-            case 'ToolCallResult':
-                if ('tool_call_id' in event && 'content' in event) this.handlers.onToolCallResult?.(event);
-                break;
-            case 'ThinkingStart':
-                if ('thinking_id' in event) this.handlers.onThinkingStart?.(event);
-                break;
-            case 'ThinkingContent':
-                if ('thinking_id' in event && 'delta' in event) this.handlers.onThinkingContent?.(event);
-                break;
-            case 'ThinkingEnd':
-                if ('thinking_id' in event) this.handlers.onThinkingEnd?.(event);
-                break;
-            case 'StateSnapshot':
-                if ('state' in event) this.handlers.onStateSnapshot?.(event);
-                break;
-            case 'StateDelta':
-                if ('delta' in event) this.handlers.onStateDelta?.(event);
-                break;
-            case 'UIComponent':
-                if ('component_id' in event) this.handlers.onUIComponent?.(event);
-                break;
-            case 'UIUpdate':
-                if ('component_id' in event) this.handlers.onUIUpdate?.(event);
-                break;
-            case 'UIRemove':
-                if ('component_id' in event) this.handlers.onUIRemove?.(event);
-                break;
-            default:
-                this.handlers.onCustomEvent?.(event as AgentCustomEvent);
+        const callHandlerFn = () => {
+            switch (event.type) {
+                case 'RunStarted':
+                    if ('run_id' in event) this.handlers.onRunStarted?.(event);
+                    break;
+                case 'RunFinished':
+                    if ('run_id' in event) this.handlers.onRunFinished?.(event);
+                    break;
+                case 'RunError':
+                    if ('run_id' in event && 'error' in event) this.handlers.onRunError?.(event);
+                    break;
+                case 'StepStarted':
+                    if ('step_id' in event) this.handlers.onStepStarted?.(event);
+                    break;
+                case 'StepFinished':
+                    if ('step_id' in event) this.handlers.onStepFinished?.(event);
+                    break;
+                case 'TextMessageStart':
+                    if ('message_id' in event) this.handlers.onTextMessageStart?.(event);
+                    break;
+                case 'TextMessageContent':
+                    if ('message_id' in event && 'delta' in event) this.handlers.onTextMessageContent?.(event);
+                    break;
+                case 'TextMessageEnd':
+                    if ('message_id' in event) this.handlers.onTextMessageEnd?.(event);
+                    break;
+                case 'ToolCallStart':
+                    if ('tool_call_id' in event) this.handlers.onToolCallStart?.(event);
+                    break;
+                case 'ToolCallArgs':
+                    if ('tool_call_id' in event && 'delta' in event) this.handlers.onToolCallArgs?.(event);
+                    break;
+                case 'ToolCallEnd':
+                    if ('tool_call_id' in event) this.handlers.onToolCallEnd?.(event);
+                    break;
+                case 'ToolCallResult':
+                    if ('tool_call_id' in event && 'content' in event) this.handlers.onToolCallResult?.(event);
+                    break;
+                case 'ThinkingStart':
+                    if ('thinking_id' in event) this.handlers.onThinkingStart?.(event);
+                    break;
+                case 'ThinkingContent':
+                    if ('thinking_id' in event && 'delta' in event) this.handlers.onThinkingContent?.(event);
+                    break;
+                case 'ThinkingEnd':
+                    if ('thinking_id' in event) this.handlers.onThinkingEnd?.(event);
+                    break;
+                case 'StateSnapshot':
+                    if ('state' in event) this.handlers.onStateSnapshot?.(event);
+                    break;
+                case 'StateDelta':
+                    if ('delta' in event) this.handlers.onStateDelta?.(event);
+                    break;
+                case 'UIComponent':
+                    if ('component_id' in event) this.handlers.onUIComponent?.(event);
+                    break;
+                case 'UIUpdate':
+                    if ('component_id' in event) this.handlers.onUIUpdate?.(event);
+                    break;
+                case 'UIRemove':
+                    if ('component_id' in event) this.handlers.onUIRemove?.(event);
+                    break;
+                default:
+                    this.handlers.onCustomEvent?.(event as AgentCustomEvent);
+            }
+        };
+
+        // In batch mode, queue the update instead of executing immediately
+        if (this.batchMode) {
+            this.pendingUpdates.push(callHandlerFn);
+        } else {
+            callHandlerFn();
         }
     }
 
