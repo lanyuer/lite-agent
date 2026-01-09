@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Send, StopCircle, Paperclip, Mic, ArrowUp, Plus } from 'lucide-react';
 import { Sidebar, type Task } from './components/Sidebar';
 import { EventMessage } from './components/EventMessage';
+import { FileBrowser } from './components/FileBrowser';
 import { useAgentEvents } from './hooks/useAgentEvents';
 import type { MessageState, ThinkingState, ToolCallState } from './lib/EventProcessor';
 import './App.css';
@@ -14,11 +15,12 @@ function AppWithEvents() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [tasks, setTasks] = useState<Task[]>([]);
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
-    const [isLoadingTasks, setIsLoadingTasks] = useState(true);
+    const [, setIsLoadingTasks] = useState(true);
+    const [isFileBrowserOpen, setIsFileBrowserOpen] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-    const { state, sendMessage, stopGeneration, loadTask, setTaskId, resetSession, sendUIInteraction } = useAgentEvents({
+    const { state, sendMessage, stopGeneration, loadTask, setTaskId, resetSession } = useAgentEvents({
         onError: (error) => {
             console.error('Agent error:', error);
             alert(`Error: ${error}`);
@@ -207,6 +209,12 @@ function AppWithEvents() {
                 onNewTask={handleNewTask}
                 onTaskSelect={handleTaskSelect}
                 onTaskDelete={handleTaskDelete}
+                onOpenFileBrowser={() => setIsFileBrowserOpen(true)}
+            />
+            
+            <FileBrowser 
+                isOpen={isFileBrowserOpen} 
+                onClose={() => setIsFileBrowserOpen(false)} 
             />
 
             <main className="main-content">
@@ -272,7 +280,7 @@ function AppWithEvents() {
                                 // Collect all events and sort by sequence
                                 const allEvents: Array<{
                                     type: 'message' | 'thinking' | 'toolCall' | 'uiComponent';
-                                    data: MessageState | ThinkingState | ToolCallState | import('../lib/EventProcessor').UIComponentState;
+                                    data: MessageState | ThinkingState | ToolCallState | import('./lib/EventProcessor').UIComponentState;
                                     sequence: number;
                                 }> = [];
 
@@ -298,7 +306,7 @@ function AppWithEvents() {
                                     message?: MessageState;
                                     thinking?: ThinkingState;
                                     toolCall?: ToolCallState;
-                                    uiComponents?: import('../lib/EventProcessor').UIComponentState[];
+                                    uiComponents?: import('./lib/EventProcessor').UIComponentState[];
                                 }> = [];
 
                                 for (let i = 0; i < allEvents.length; i++) {
@@ -332,7 +340,7 @@ function AppWithEvents() {
                                             });
                                         }
                                     } else if (event.type === 'toolCall') {
-                                        grouped.push({ id: event.data.id, toolCall: event.data as ToolCallState });
+                                        grouped.push({ id: (event.data as ToolCallState).id, toolCall: event.data as ToolCallState });
                                     } else if (event.type === 'thinking') {
                                         // Check if this thinking is consumed by a future message
                                         let isConsumed = false;
@@ -350,7 +358,7 @@ function AppWithEvents() {
                                         }
                                         
                                         if (!isConsumed) {
-                                            grouped.push({ id: event.data.id, thinking: event.data as ThinkingState });
+                                            grouped.push({ id: (event.data as ThinkingState).id, thinking: event.data as ThinkingState });
                                         }
                                     }
                                 }
@@ -443,7 +451,7 @@ function AppWithEvents() {
                                             usage={isLastAssistantMessage ? state.usage : undefined}
                                             cumulativeUsage={cumulativeUsage}
                                             showCumulative={isLastAssistantMessage}
-                                            onUIInteraction={sendUIInteraction}
+                                            onUIInteraction={() => {}}
                                         />
                                     );
                                 });

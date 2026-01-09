@@ -159,7 +159,15 @@ function App() {
 
   return (
     <div className="app-layout">
-      <Sidebar isOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
+      <Sidebar 
+        isOpen={isSidebarOpen} 
+        toggleSidebar={toggleSidebar} 
+        tasks={[]}
+        currentTaskId={null}
+        onNewTask={() => {}}
+        onTaskSelect={() => {}}
+        onTaskDelete={() => {}}
+      />
 
       <main className="main-content">
         {messages.length === 0 ? (
