@@ -8,7 +8,7 @@ import {
     PanelLeft,
     MessageSquare,
     Trash2,
-    X
+    FolderOpen
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -31,6 +31,7 @@ interface SidebarProps {
     onNewTask: () => void;
     onTaskSelect: (taskId: string) => void;
     onTaskDelete: (taskId: string) => void;
+    onOpenFileBrowser?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
@@ -40,9 +41,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     currentTaskId,
     onNewTask,
     onTaskSelect,
-    onTaskDelete
+    onTaskDelete,
+    onOpenFileBrowser
 }) => {
-    const [hoveredTaskId, setHoveredTaskId] = useState<number | null>(null);
+    const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
     return (
         <div className={`sidebar ${isOpen ? 'open' : 'closed'}`}>
             <div className="sidebar-header">
@@ -62,6 +64,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </button>
 
                 <div className="nav-group">
+                    <div className="nav-item" onClick={onOpenFileBrowser}>
+                        <FolderOpen size={18} />
+                        <span>File Browser</span>
+                    </div>
                     <div className="nav-item">
                         <Search size={18} />
                         <span>Search</span>

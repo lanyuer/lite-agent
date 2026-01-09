@@ -1,0 +1,389 @@
+/* FileBrowser Modal - VS Code Style */
+
+.file-browser-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 24px;
+}
+
+.file-browser-modal {
+    width: 100%;
+    max-width: 1200px;
+    height: 85vh;
+    max-height: 800px;
+    background: #1e1e1e;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 
+        0 0 0 1px rgba(255, 255, 255, 0.1),
+        0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+}
+
+/* Header - VS Code title bar style */
+.file-browser-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    height: 38px;
+    background: #323233;
+    border-bottom: 1px solid #191919;
+    flex-shrink: 0;
+}
+
+.file-browser-header h2 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 400;
+    color: #cccccc;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.file-browser-header h2::before {
+    content: '';
+    width: 16px;
+    height: 16px;
+    background: linear-gradient(135deg, #007acc 0%, #0098ff 100%);
+    border-radius: 3px;
+}
+
+.file-browser-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.header-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: #858585;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.header-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #cccccc;
+}
+
+.header-btn.close:hover {
+    background: #c42b1c;
+    color: white;
+}
+
+/* Content Layout */
+.file-browser-content {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+}
+
+/* File Tree Panel - Explorer style */
+.file-browser-tree {
+    width: 260px;
+    min-width: 180px;
+    max-width: 400px;
+    background: #252526;
+    border-right: 1px solid #191919;
+    overflow: auto;
+    resize: horizontal;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Explorer header */
+.tree-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    height: 35px;
+    border-bottom: 1px solid #191919;
+    flex-shrink: 0;
+}
+
+.tree-header-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: #bbbbbb;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.tree-header-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.tree-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    color: #858585;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.tree-action-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #cccccc;
+}
+
+.tree-container {
+    flex: 1;
+    overflow: auto;
+    padding: 4px 0;
+}
+
+.tree-loading,
+.tree-error,
+.tree-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    gap: 12px;
+    color: #858585;
+    font-size: 12px;
+}
+
+.tree-loading .spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.tree-error {
+    color: #f14c4c;
+}
+
+.tree-error button {
+    padding: 4px 12px;
+    background: #0e639c;
+    border: none;
+    border-radius: 3px;
+    color: white;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background 0.15s ease;
+}
+
+.tree-error button:hover {
+    background: #1177bb;
+}
+
+/* Tree Item - VS Code style */
+.tree-item {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px 8px;
+    cursor: pointer;
+    color: #cccccc;
+    transition: background 0.1s ease;
+    user-select: none;
+    font-size: 13px;
+    line-height: 22px;
+}
+
+.tree-item:hover {
+    background: #2a2d2e;
+}
+
+.tree-item.selected {
+    background: #094771;
+}
+
+.tree-item.selected:hover {
+    background: #094771;
+}
+
+/* Folder styling */
+.tree-item.directory .tree-name {
+    color: #e8ab6f;
+}
+
+/* File icon colors based on type */
+.tree-item .tree-icon {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+}
+
+.tree-item .tree-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Different file type colors */
+.tree-item.file-ts .tree-icon,
+.tree-item.file-tsx .tree-icon {
+    color: #519aba;
+}
+
+.tree-item.file-js .tree-icon,
+.tree-item.file-jsx .tree-icon {
+    color: #cbcb41;
+}
+
+.tree-item.file-css .tree-icon {
+    color: #61afef;
+}
+
+.tree-item.file-json .tree-icon {
+    color: #cbcb41;
+}
+
+.tree-item.file-md .tree-icon {
+    color: #519aba;
+}
+
+.tree-item.file-py .tree-icon {
+    color: #4584b6;
+}
+
+.tree-item.file-image .tree-icon {
+    color: #a074c4;
+}
+
+.tree-item .tree-chevron {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    color: #858585;
+    flex-shrink: 0;
+}
+
+.tree-item .tree-chevron svg {
+    width: 16px;
+    height: 16px;
+    transition: transform 0.15s ease;
+}
+
+.tree-item .tree-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tree-children {
+    /* Children are indented via padding-left on tree-item */
+}
+
+/* File Viewer Panel */
+.file-browser-viewer {
+    flex: 1;
+    overflow: hidden;
+    background: #1e1e1e;
+    display: flex;
+    flex-direction: column;
+}
+
+.viewer-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 16px;
+    color: #5a5a5a;
+}
+
+.viewer-placeholder svg {
+    opacity: 0.3;
+}
+
+.viewer-placeholder span {
+    font-size: 13px;
+    color: #858585;
+}
+
+/* Scrollbar styling */
+.file-browser-tree::-webkit-scrollbar,
+.tree-container::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+.file-browser-tree::-webkit-scrollbar-track,
+.tree-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.file-browser-tree::-webkit-scrollbar-thumb,
+.tree-container::-webkit-scrollbar-thumb {
+    background: rgba(121, 121, 121, 0.4);
+    border-radius: 5px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+}
+
+.file-browser-tree::-webkit-scrollbar-thumb:hover,
+.tree-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(121, 121, 121, 0.7);
+    background-clip: padding-box;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .file-browser-overlay {
+        padding: 0;
+    }
+
+    .file-browser-modal {
+        height: 100vh;
+        max-height: 100vh;
+        border-radius: 0;
+    }
+
+    .file-browser-content {
+        flex-direction: column;
+    }
+
+    .file-browser-tree {
+        width: 100%;
+        max-width: none;
+        height: 35%;
+        resize: vertical;
+        border-right: none;
+        border-bottom: 1px solid #191919;
+    }
+
+    .file-browser-viewer {
+        height: 65%;
+    }
+}

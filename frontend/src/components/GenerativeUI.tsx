@@ -57,7 +57,7 @@ const builtInComponents: ComponentRegistry = {
                 width={width}
                 height={height}
                 className="genui-image"
-                onError={(e) => {
+                onError={() => {
                     console.error('Failed to load image:', imageSrc);
                 }}
                 {...rest}
@@ -160,7 +160,7 @@ const builtInComponents: ComponentRegistry = {
     },
 
     // Container component
-    container: (props: any, onInteraction: (type: string, data: any) => void) => {
+    container: (props: any, _onInteraction: (type: string, data: any) => void) => {
         const { children, layout = 'vertical', ...rest } = props;
         return (
             <div
