@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     api_reload: bool = True
     
     # CORS
-    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"]
     
     # Agent SDK
     anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")

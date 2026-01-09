@@ -36,13 +36,14 @@ export function useAgentEvents(options: UseAgentEventsOptions = {}) {
     const abortControllerRef = useRef<AbortController | null>(null);
     const sessionIdRef = useRef<string | null>(null);
     const taskIdRef = useRef<string | null>(null);
+    const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const updateState = useCallback((immediate = false) => {
         if (!processorRef.current) return;
 
         const runState = processorRef.current.getState();
 
-        console.log('[useAgentEvents] updateState called, isRunning:', runState.isRunning);
+        // console.log('[useAgentEvents] updateState called, isRunning:', runState.isRunning);
 
         const updateFn = () => {
             setState({
@@ -429,142 +430,158 @@ export function useAgentEvents(options: UseAgentEventsOptions = {}) {
                 // If we have events, load them
                 if (events && events.length > 0) {
                     console.log(`[loadTask] Loading ${events.length} events for task ${taskId}`);
-                    // Ensure events are sorted by sequence (backend should already sort, but be safe)
-                    events.sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
-                    let lastUsageInfo: any = null;
-                    for (const event of events) {
-                        try {
-                            // Skip SystemMessage and SessionInfo events - these are handled separately
-                            // SystemMessage is only used to extract session_id on the backend
-                            // SessionInfo is sent to frontend but doesn't need to be replayed
-                            if (event.event_type === 'SystemMessage' || event.event_type === 'SessionInfo') {
-                                console.log(`[loadTask] Skipping ${event.event_type} event (handled separately)`);
-                                continue;
+                    // Enable batch mode to reduce re-renders during bulk event loading
+                    processorRef.current.enableBatchMode();
+
+                    try {
+                        // Ensure events are sorted by sequence (backend should already sort, but be safe)
+                        events.sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
+                        let lastUsageInfo: any = null;
+                        for (const event of events) {
+                            try {
+                                // Skip SystemMessage and SessionInfo events - these are handled separately
+                                // SystemMessage is only used to extract session_id on the backend
+                                // SessionInfo is sent to frontend but doesn't need to be replayed
+                                if (event.event_type === 'SystemMessage' || event.event_type === 'SessionInfo') {
+                                    console.log(`[loadTask] Skipping ${event.event_type} event (handled separately)`);
+                                    continue;
+                                }
+
+                                // Process each event
+                                const eventData = event.event_data || {};
+                                // eventData already contains 'type' from model_dump(), but we use event_type from DB
+                                // Remove 'type' and 'timestamp' from eventData if present to avoid conflict
+                                const { type: _, timestamp: __, ...restData } = eventData;
+
+                                // For CustomEvent types (like ResultMessage), eventData might be the 'data' field
+                                // Reconstruct the event object properly
+                                let eventObj: any;
+                                if (event.event_type === 'ResultMessage' && eventData.data) {
+                                    // ResultMessage was saved as CustomEvent, reconstruct it
+                                    eventObj = {
+                                        type: event.event_type,
+                                        ...eventData,
+                                        timestamp: event.created_at || new Date().toISOString(),
+                                    };
+                                } else {
+                                    // Normal event reconstruction
+                                    eventObj = {
+                                        type: event.event_type,
+                                        ...restData,
+                                        timestamp: event.created_at || new Date().toISOString(),
+                                    };
+                                }
+
+                                // Validate required fields for specific event types
+                                if (event.event_type === 'ThinkingStart' && !eventObj.thinking_id) {
+                                    console.warn(`[loadTask] ThinkingStart event missing thinking_id:`, eventObj);
+                                    continue; // Skip invalid event
+                                }
+                                if (event.event_type === 'ThinkingContent' && !eventObj.thinking_id) {
+                                    console.warn(`[loadTask] ThinkingContent event missing thinking_id:`, eventObj);
+                                    continue; // Skip invalid event
+                                }
+                                if (event.event_type === 'ThinkingEnd' && !eventObj.thinking_id) {
+                                    console.warn(`[loadTask] ThinkingEnd event missing thinking_id:`, eventObj);
+                                    continue; // Skip invalid event
+                                }
+                                if (event.event_type === 'TextMessageStart' && !eventObj.message_id) {
+                                    console.warn(`[loadTask] TextMessageStart event missing message_id:`, eventObj);
+                                    continue; // Skip invalid event
+                                }
+
+                                console.log(`[loadTask] Processing event: ${event.event_type} (sequence=${event.sequence})`, eventObj);
+                                // Use database sequence for proper ordering (interleaved user/assistant messages)
+                                processorRef.current.processEvent(eventObj as AgentEvent, event.sequence);
+                            } catch (e) {
+                                console.error(`[loadTask] Error processing event ${event.event_type}:`, e, event);
                             }
-                            
-                            // Process each event
-                            const eventData = event.event_data || {};
-                            // eventData already contains 'type' from model_dump(), but we use event_type from DB
-                            // Remove 'type' and 'timestamp' from eventData if present to avoid conflict
-                            const { type: _, timestamp: __, ...restData } = eventData;
-                            
-                            // For CustomEvent types (like ResultMessage), eventData might be the 'data' field
-                            // Reconstruct the event object properly
-                            let eventObj: any;
-                            if (event.event_type === 'ResultMessage' && eventData.data) {
-                                // ResultMessage was saved as CustomEvent, reconstruct it
-                                eventObj = {
-                                    type: event.event_type,
-                                    ...eventData,
-                                    timestamp: event.created_at || new Date().toISOString(),
-                                };
-                            } else {
-                                // Normal event reconstruction
-                                eventObj = {
-                                    type: event.event_type,
-                                    ...restData,
-                                    timestamp: event.created_at || new Date().toISOString(),
-                                };
+
+                            // Track usage from RunFinished event
+                            if (event.event_type === 'RunFinished') {
+                                const eventDataForUsage = event.event_data || {};
+                                const usageData = eventDataForUsage.usage || {};
+                                const totalCost = eventDataForUsage.total_cost_usd;
+                                if (usageData && Object.keys(usageData).length > 0) {
+                                    lastUsageInfo = {
+                                        ...usageData,
+                                        total_cost_usd: totalCost !== undefined && totalCost !== null ? totalCost : (usageData.total_cost_usd || 0),
+                                    };
+                                } else if (totalCost !== undefined && totalCost !== null) {
+                                    lastUsageInfo = {
+                                        total_cost_usd: totalCost,
+                                    };
+                                }
                             }
-                            
-                            // Validate required fields for specific event types
-                            if (event.event_type === 'ThinkingStart' && !eventObj.thinking_id) {
-                                console.warn(`[loadTask] ThinkingStart event missing thinking_id:`, eventObj);
-                                continue; // Skip invalid event
-                            }
-                            if (event.event_type === 'ThinkingContent' && !eventObj.thinking_id) {
-                                console.warn(`[loadTask] ThinkingContent event missing thinking_id:`, eventObj);
-                                continue; // Skip invalid event
-                            }
-                            if (event.event_type === 'ThinkingEnd' && !eventObj.thinking_id) {
-                                console.warn(`[loadTask] ThinkingEnd event missing thinking_id:`, eventObj);
-                                continue; // Skip invalid event
-                            }
-                            if (event.event_type === 'TextMessageStart' && !eventObj.message_id) {
-                                console.warn(`[loadTask] TextMessageStart event missing message_id:`, eventObj);
-                                continue; // Skip invalid event
-                            }
-                            
-                            console.log(`[loadTask] Processing event: ${event.event_type} (sequence=${event.sequence})`, eventObj);
-                            // Use database sequence for proper ordering (interleaved user/assistant messages)
-                            processorRef.current.processEvent(eventObj as AgentEvent, event.sequence);
-                        } catch (e) {
-                            console.error(`[loadTask] Error processing event ${event.event_type}:`, e, event);
                         }
-                        
-                        // Track usage from RunFinished event
-                        if (event.event_type === 'RunFinished') {
-                            const eventDataForUsage = event.event_data || {};
-                            const usageData = eventDataForUsage.usage || {};
-                            const totalCost = eventDataForUsage.total_cost_usd;
-                            if (usageData && Object.keys(usageData).length > 0) {
-                                lastUsageInfo = {
-                                    ...usageData,
-                                    total_cost_usd: totalCost !== undefined && totalCost !== null ? totalCost : (usageData.total_cost_usd || 0),
-                                };
-                            } else if (totalCost !== undefined && totalCost !== null) {
-                                lastUsageInfo = {
-                                    total_cost_usd: totalCost,
-                                };
-                            }
+
+                        // Set usage info if available
+                        if (lastUsageInfo && processorRef.current) {
+                            processorRef.current.setUsage(lastUsageInfo);
                         }
-                    }
-                    
-                    // Set usage info if available
-                    if (lastUsageInfo && processorRef.current) {
-                        processorRef.current.setUsage(lastUsageInfo);
+                    } finally {
+                        // Always disable batch mode and flush updates
+                        processorRef.current.disableBatchMode();
                     }
                 } else {
                     // Fallback to conversations (for old tasks without events)
                     console.log(`[loadTask] No events found, loading conversations for task ${taskId}`);
                     if (task.conversations && task.conversations.length > 0) {
-                        let lastAssistantConv = null;
-                        for (const conv of task.conversations) {
-                            const messageId = `msg-${conv.id}`;
-                            processorRef.current.processEvent({
-                                type: 'TextMessageStart',
-                                message_id: messageId,
-                                role: conv.role as 'user' | 'assistant',
-                                timestamp: conv.created_at,
-                            });
-                            processorRef.current.processEvent({
-                                type: 'TextMessageContent',
-                                message_id: messageId,
-                                delta: conv.content,
-                                timestamp: conv.created_at,
-                            });
-                            processorRef.current.processEvent({
-                                type: 'TextMessageEnd',
-                                message_id: messageId,
-                                timestamp: conv.created_at,
-                            });
-                            
-                            // Track last assistant message for usage info
-                            if (conv.role === 'assistant') {
-                                lastAssistantConv = conv;
+                        // Enable batch mode for conversations as well
+                        processorRef.current.enableBatchMode();
+
+                        try {
+                            let lastAssistantConv = null;
+                            for (const conv of task.conversations) {
+                                const messageId = `msg-${conv.id}`;
+                                processorRef.current.processEvent({
+                                    type: 'TextMessageStart',
+                                    message_id: messageId,
+                                    role: conv.role as 'user' | 'assistant',
+                                    timestamp: conv.created_at,
+                                });
+                                processorRef.current.processEvent({
+                                    type: 'TextMessageContent',
+                                    message_id: messageId,
+                                    delta: conv.content,
+                                    timestamp: conv.created_at,
+                                });
+                                processorRef.current.processEvent({
+                                    type: 'TextMessageEnd',
+                                    message_id: messageId,
+                                    timestamp: conv.created_at,
+                                });
+
+                                // Track last assistant message for usage info
+                                if (conv.role === 'assistant') {
+                                    lastAssistantConv = conv;
+                                }
                             }
-                        }
-                        
-                        // If last message was assistant and has usage info, restore it to state
-                        if (lastAssistantConv && (lastAssistantConv.cost_usd || lastAssistantConv.input_tokens || lastAssistantConv.output_tokens)) {
-                            const usageInfo: any = {};
-                            if (lastAssistantConv.cost_usd) {
-                                usageInfo.total_cost_usd = lastAssistantConv.cost_usd;
+
+                            // If last message was assistant and has usage info, restore it to state
+                            if (lastAssistantConv && (lastAssistantConv.cost_usd || lastAssistantConv.input_tokens || lastAssistantConv.output_tokens)) {
+                                const usageInfo: any = {};
+                                if (lastAssistantConv.cost_usd) {
+                                    usageInfo.total_cost_usd = lastAssistantConv.cost_usd;
+                                }
+                                if (lastAssistantConv.input_tokens) {
+                                    usageInfo.input_tokens = lastAssistantConv.input_tokens;
+                                }
+                                if (lastAssistantConv.output_tokens) {
+                                    usageInfo.output_tokens = lastAssistantConv.output_tokens;
+                                }
+                                if (lastAssistantConv.usage_data) {
+                                    Object.assign(usageInfo, lastAssistantConv.usage_data);
+                                }
+
+                                // Set usage in processor state
+                                if (processorRef.current) {
+                                    processorRef.current.setUsage(usageInfo);
+                                }
                             }
-                            if (lastAssistantConv.input_tokens) {
-                                usageInfo.input_tokens = lastAssistantConv.input_tokens;
-                            }
-                            if (lastAssistantConv.output_tokens) {
-                                usageInfo.output_tokens = lastAssistantConv.output_tokens;
-                            }
-                            if (lastAssistantConv.usage_data) {
-                                Object.assign(usageInfo, lastAssistantConv.usage_data);
-                            }
-                            
-                            // Set usage in processor state
-                            if (processorRef.current) {
-                                processorRef.current.setUsage(usageInfo);
-                            }
+                        } finally {
+                            // Always disable batch mode and flush updates
+                            processorRef.current.disableBatchMode();
                         }
                     }
                 }
